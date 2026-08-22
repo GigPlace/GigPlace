@@ -1,4 +1,3 @@
-// app/api/fund-wallet/route.ts
 
 import {
   NextRequest,

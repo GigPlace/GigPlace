@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   ChevronRight,
   UserCog,
+  ClipboardCheck,
+  Banknote,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -36,37 +38,46 @@ const navigation = [
   },
   {
     label: "Users",
-    href: "/admin/users",
+    href: "/admin/dashboard/users",
     icon: Users,
   },
   {
     label: "Campaigns",
-    href: "/admin/campaigns",
+    href: "/admin/dashboard/campaigns",
     icon: BriefcaseBusiness,
   },
   {
     label: "Tasks",
-    href: "/admin/tasks",
+    href: "/admin/dashboard/tasks",
     icon: ClipboardList,
   },
   {
+  label: "Task Submissions",
+  href: "/admin/dashboard/submissions",
+  icon: ClipboardCheck,
+},
+  {
     label: "Wallets",
-    href: "/admin/wallets",
+    href: "/admin/dashboard/wallets",
     icon: Wallet,
+  },
+  {label: 'withdrawals',
+  href: '/admin/dashboard/withdrawals',
+  icon: Banknote,
   },
   {
     label: "Payments",
-    href: "/admin/payments",
+    href: "/admin/dashboard/payments",
     icon: CreditCard,
   },
   {
     label: "Analytics",
-    href: "/admin/analytics",
+    href: "/admin/dashboard/analytics",
     icon: BarChart3,
   },
   {
     label: "Notifications",
-    href: "/admin/notifications",
+    href: "/admin/dashboard/notifications",
     icon: Bell,
   },
 ];
