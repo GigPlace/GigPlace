@@ -9,6 +9,7 @@ import {
   EyeOff,
   Loader2,
   Mail,
+  Phone,
   ShieldCheck,
   User,
   UserRound,
@@ -87,6 +88,7 @@ export default function SignupPage() {
       return updated;
     });
 
+    // Clear the specific error
     if (errors[name as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
@@ -107,11 +109,14 @@ export default function SignupPage() {
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, '');
 
-    if (!cleanUserName) {
+    if (!formData.userName.trim()) {
+      newErrors.userName = 'Username is required';
+    } else if (cleanUserName.length < 3) {
+      newErrors.userName =
+        'Username must be at least 3 characters (letters, numbers, underscores only)';
+    } else if (cleanUserName !== formData.userName.trim().toLowerCase()) {
       newErrors.userName =
         'Username can only contain letters, numbers, and underscores';
-    } else if (cleanUserName.length < 3) {
-      newErrors.userName = 'Username must be at least 3 characters';
     }
 
     if (!formData.email.trim()) {
@@ -185,7 +190,6 @@ export default function SignupPage() {
 
       if (error) {
         setErrors({ general: error.message });
-        setIsLoading(false);
         return;
       }
 
@@ -193,35 +197,11 @@ export default function SignupPage() {
         setErrors({
           general: 'We could not create your account. Please try again.',
         });
-        setIsLoading(false);
-        return;
-      }
-
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        full_name: formData.fullName.trim(),
-        user_name: cleanUserName,
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        nationality: formData.nationality,
-        state: formData.state,
-        lga: formData.lga,
-        role: 'user',
-        status: 'active',
-      });
-
-      if (profileError) {
-        if (profileError.message.includes('user_name')) {
-          setErrors({ userName: 'This username is already taken' });
-        } else {
-          setErrors({ general: profileError.message });
-        }
-        setIsLoading(false);
         return;
       }
 
       setSuccessMessage(
-        'Account created! Please check your email to confirm.'
+        'Account created successfully! Please check your email to confirm your account.'
       );
 
       setTimeout(() => {
@@ -244,7 +224,7 @@ export default function SignupPage() {
   return (
     <main className="h-screen max-w-7xl mx-auto bg-[#f4f8f7] overflow-hidden">
       <div className="grid h-full lg:grid-cols-2">
-        {/* Left side - compact */}
+        {/* Left side */}
         <section className="relative hidden overflow-hidden bg-[#0b3939] px-8 py-8 lg:flex lg:flex-col lg:justify-between">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white blur-3xl" />
@@ -285,7 +265,7 @@ export default function SignupPage() {
           </p>
         </section>
 
-        {/* Right side - Form (scrollable only if needed) */}
+        {/* Right side - Form */}
         <section className="flex h-full items-center justify-center overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-lg">
             <div className="mb-4 lg:hidden">
@@ -398,16 +378,17 @@ export default function SignupPage() {
                     <label className="mb-1 block text-xs font-semibold text-slate-700">
                       Phone
                     </label>
-                    <input
-                      name="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="+234 800 000 0000"
-                      className={`${inputBase} ${
-                        errors.phone ? inputError : inputNormal
-                      }`}
-                    />
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 transition focus-within:border-[#0b3939] focus-within:ring-2 focus-within:ring-[#0b3939]/10">
+                      <Phone className="h-4 w-4 shrink-0 text-slate-400" />
+                      <input
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        placeholder="+234 800 000 0000"
+                        className="w-full bg-transparent py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                      />
+                    </div>
                     {errors.phone && (
                       <p className="mt-1 text-[11px] text-red-600">
                         {errors.phone}
@@ -522,6 +503,7 @@ export default function SignupPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0b3939]"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -558,6 +540,11 @@ export default function SignupPage() {
                           setShowConfirmPassword(!showConfirmPassword)
                         }
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0b3939]"
+                        aria-label={
+                          showConfirmPassword
+                            ? 'Hide password'
+                            : 'Show password'
+                        }
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-4 w-4" />

@@ -15,7 +15,6 @@ export default function AdvertiserHeader({
   firstName = "Advertiser",
 }: AdvertiserHeaderProps) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const fetchUnreadCount = useCallback(async (uid: string) => {
     const { count, error } = await supabase
@@ -33,6 +32,7 @@ export default function AdvertiserHeader({
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const init = async () => {
@@ -40,14 +40,28 @@ export default function AdvertiserHeader({
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      // Component unmounted while waiting for auth
+      if (!user || !mounted) return;
 
-      setUserId(user.id);
       await fetchUnreadCount(user.id);
 
-      // Realtime: INSERT / UPDATE / DELETE for this advertiser only
+      // Unmounted while fetching count
+      if (!mounted) return;
+
+      // Remove any existing channel with this name (Strict Mode / remount)
+      const channelName = `header-notifications:${user.id}`;
+      const existing = supabase
+        .getChannels()
+        .find((ch) => ch.topic === `realtime:${channelName}`);
+
+      if (existing) {
+        await supabase.removeChannel(existing);
+      }
+
+      if (!mounted) return;
+
       channel = supabase
-        .channel(`header-notifications:${user.id}`)
+        .channel(channelName)
         .on(
           "postgres_changes",
           {
@@ -57,7 +71,7 @@ export default function AdvertiserHeader({
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            // Re-fetch count on any change (simple + accurate)
+            if (!mounted) return;
             void fetchUnreadCount(user.id);
           }
         )
@@ -67,8 +81,11 @@ export default function AdvertiserHeader({
     void init();
 
     return () => {
+      mounted = false;
+
       if (channel) {
         void supabase.removeChannel(channel);
+        channel = null;
       }
     };
   }, [fetchUnreadCount]);

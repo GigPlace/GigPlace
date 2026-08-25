@@ -60,7 +60,7 @@ const formatDate = (date: string) =>
     minute: "2-digit",
   }).format(new Date(date));
 
-const getTransactionIcon = (direction: string, type: string) => {
+const getTransactionIcon = (direction: string) => {
   if (direction === "credit") {
     return <ArrowDownLeft className="h-4 w-4 text-emerald-600" />;
   }
@@ -110,28 +110,63 @@ export default function WalletPage() {
         return;
       }
 
-      // 1. Get or create wallet
+      // 1. Try to fetch existing wallet
       let { data: walletData, error: walletError } = await supabase
         .from("wallets")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (walletError) throw walletError;
+      if (walletError) {
+        console.error("Wallet fetch error:", walletError);
+        throw walletError;
+      }
 
-      // Create wallet if it doesn't exist
+      // 2. Create wallet if it doesn't exist
       if (!walletData) {
         const { data: newWallet, error: createError } = await supabase
           .from("wallets")
-          .insert({ user_id: user.id })
-          .select()
-          .single();
+          .insert({
+            user_id: user.id,
+            available_balance: 0,
+            pending_balance: 0,
+            total_earned: 0,
+            total_withdrawn: 0,
+          })
+          .select("*")
+          .maybeSingle();
 
-        if (createError) throw createError;
-        walletData = newWallet;
+        if (createError) {
+          console.error("Wallet create error:", createError);
+          throw createError;
+        }
+
+        // If insert succeeded but we got no row back (RLS), refetch
+        if (!newWallet) {
+          const { data: refetch, error: refetchError } = await supabase
+            .from("wallets")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (refetchError) {
+            console.error("Wallet refetch error:", refetchError);
+            throw refetchError;
+          }
+
+          if (!refetch) {
+            throw new Error(
+              "Wallet was created but could not be loaded. Please check your RLS policies."
+            );
+          }
+
+          walletData = refetch;
+        } else {
+          walletData = newWallet;
+        }
       }
 
-      // 2. Get recent transactions
+      // 3. Get recent transactions
       const { data: txData, error: txError } = await supabase
         .from("transactions")
         .select(
@@ -141,7 +176,10 @@ export default function WalletPage() {
         .order("created_at", { ascending: false })
         .limit(30);
 
-      if (txError) throw txError;
+      if (txError) {
+        console.error("Transactions fetch error:", txError);
+        throw txError;
+      }
 
       setWallet({
         ...walletData,
@@ -158,7 +196,12 @@ export default function WalletPage() {
         }))
       );
     } catch (err: any) {
-      console.error(err);
+      console.error("Wallet error:", {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+      });
       setError(err?.message || "Failed to load wallet data.");
     } finally {
       setLoading(false);
@@ -234,9 +277,7 @@ export default function WalletPage() {
           <p className="mt-3 text-3xl font-bold">
             {formatNaira(wallet?.available_balance || 0)}
           </p>
-          <p className="mt-2 text-xs text-white/60">
-            Ready to withdraw
-          </p>
+          <p className="mt-2 text-xs text-white/60">Ready to withdraw</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -247,9 +288,7 @@ export default function WalletPage() {
           <p className="mt-3 text-2xl font-bold text-slate-900">
             {formatNaira(wallet?.pending_balance || 0)}
           </p>
-          <p className="mt-2 text-xs text-slate-400">
-            Awaiting approval
-          </p>
+          <p className="mt-2 text-xs text-slate-400">Awaiting approval</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -260,9 +299,7 @@ export default function WalletPage() {
           <p className="mt-3 text-2xl font-bold text-slate-900">
             {formatNaira(wallet?.total_earned || 0)}
           </p>
-          <p className="mt-2 text-xs text-slate-400">
-            Lifetime earnings
-          </p>
+          <p className="mt-2 text-xs text-slate-400">Lifetime earnings</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -273,9 +310,7 @@ export default function WalletPage() {
           <p className="mt-3 text-2xl font-bold text-slate-900">
             {formatNaira(wallet?.total_withdrawn || 0)}
           </p>
-          <p className="mt-2 text-xs text-slate-400">
-            Successfully paid out
-          </p>
+          <p className="mt-2 text-xs text-slate-400">Successfully paid out</p>
         </div>
       </div>
 
@@ -316,12 +351,10 @@ export default function WalletPage() {
                 <div className="flex items-center gap-4">
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                      tx.direction === "credit"
-                        ? "bg-emerald-50"
-                        : "bg-red-50"
+                      tx.direction === "credit" ? "bg-emerald-50" : "bg-red-50"
                     }`}
                   >
-                    {getTransactionIcon(tx.direction, tx.transaction_type)}
+                    {getTransactionIcon(tx.direction)}
                   </div>
 
                   <div>

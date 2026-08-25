@@ -65,6 +65,7 @@ interface AppNotification {
   source: NotificationSource;
   source_record_id?: string;
   event_key?: string;
+  for_role?: "user" | "advertiser" | "all";
   created_at: string;
   campaign?: { id: string; title: string } | null;
 }
@@ -86,6 +87,7 @@ interface SoundSettings {
 
 const SOUND_KEY = "gigplace_notification_sound";
 const PAGE_SIZE = 30;
+const ROLE = "advertiser"; // ← Advertiser dashboard only
 
 /* ========== HELPERS ========== */
 
@@ -367,6 +369,7 @@ export default function AdvertiserNotificationsPage() {
         }
       }
 
+      // Persist with advertiser role
       if (opts?.persist && userId) {
         void supabase.from("notifications").insert({
           user_id: userId,
@@ -375,13 +378,14 @@ export default function AdvertiserNotificationsPage() {
           type: n.type,
           is_read: false,
           related_campaign_id: n.related_campaign_id,
+          for_role: "advertiser", // ← important
         });
       }
     },
     [userId]
   );
 
-  /* ----- load history from notifications table ----- */
+  /* ----- load history (role filtered) ----- */
   const loadHistory = useCallback(
     async (uid: string, reset = true) => {
       try {
@@ -400,6 +404,7 @@ export default function AdvertiserNotificationsPage() {
           .from("notifications")
           .select("*")
           .eq("user_id", uid)
+          .in("for_role", [ROLE, "all"]) // ← only advertiser + all
           .order("created_at", { ascending: false })
           .range(from, to);
 
@@ -443,6 +448,7 @@ export default function AdvertiserNotificationsPage() {
             source: "notifications" as const,
             source_record_id: r.id,
             event_key: key,
+            for_role: r.for_role,
             created_at: r.created_at,
             campaign: r.related_campaign_id
               ? campaignMap.get(r.related_campaign_id) || null
@@ -519,7 +525,7 @@ export default function AdvertiserNotificationsPage() {
       setUserId(user.id);
       await loadHistory(user.id, true);
 
-      // Cache wallet for balance diffs
+      // Cache wallet
       const { data: wallet } = await supabase
         .from("wallets")
         .select("available_balance, pending_balance")
@@ -532,10 +538,10 @@ export default function AdvertiserNotificationsPage() {
         };
       }
 
-      // 1) notifications table
+      // 1) notifications table (filtered by role on client after insert)
       channels.push(
         supabase
-          .channel(`rt-notifications:${user.id}`)
+          .channel(`rt-notifications-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -545,16 +551,13 @@ export default function AdvertiserNotificationsPage() {
               filter: `user_id=eq.${user.id}`,
             },
             (payload) => {
-              const r = payload.new as {
-                id: string;
-                user_id: string;
-                title: string;
-                message: string;
-                type: string;
-                is_read: boolean;
-                related_campaign_id: string | null;
-                created_at: string;
-              };
+              const r = payload.new as any;
+
+              // Only show if meant for advertiser
+              if (r.for_role && r.for_role !== "advertiser" && r.for_role !== "all") {
+                return;
+              }
+
               addLiveNotification({
                 id: r.id,
                 user_id: r.user_id,
@@ -566,6 +569,7 @@ export default function AdvertiserNotificationsPage() {
                 source: "notifications",
                 source_record_id: r.id,
                 event_key: eventKey("notifications", r.id, r.type || "general"),
+                for_role: r.for_role,
                 created_at: r.created_at,
                 campaign: null,
               });
@@ -584,7 +588,12 @@ export default function AdvertiserNotificationsPage() {
               setNotifications((prev) =>
                 prev.map((n) =>
                   n.id === r.id
-                    ? { ...n, is_read: r.is_read, title: r.title, message: r.message }
+                    ? {
+                        ...n,
+                        is_read: r.is_read,
+                        title: r.title,
+                        message: r.message,
+                      }
                     : n
                 )
               );
@@ -610,7 +619,7 @@ export default function AdvertiserNotificationsPage() {
       // 2) campaigns (own only)
       channels.push(
         supabase
-          .channel(`rt-campaigns:${user.id}`)
+          .channel(`rt-campaigns-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -620,14 +629,7 @@ export default function AdvertiserNotificationsPage() {
               filter: `advertiser_id=eq.${user.id}`,
             },
             (payload) => {
-              const row = (payload.new || payload.old) as {
-                id: string;
-                title: string;
-                status: string;
-                advertiser_id: string;
-                created_at?: string;
-                updated_at?: string;
-              };
+              const row = (payload.new || payload.old) as any;
               if (!row?.id || row.advertiser_id !== user.id) return;
 
               const event = payload.eventType;
@@ -694,10 +696,10 @@ export default function AdvertiserNotificationsPage() {
           .subscribe()
       );
 
-      // 3) campaign_tasks — resolve ownership via campaigns
+      // 3) campaign_tasks
       channels.push(
         supabase
-          .channel(`rt-campaign-tasks:${user.id}`)
+          .channel(`rt-campaign-tasks-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -706,14 +708,7 @@ export default function AdvertiserNotificationsPage() {
               table: "campaign_tasks",
             },
             async (payload) => {
-              const row = (payload.new || payload.old) as {
-                id: string;
-                campaign_id: string;
-                title: string;
-                status: string;
-                created_at?: string;
-                updated_at?: string;
-              };
+              const row = (payload.new || payload.old) as any;
               if (!row?.campaign_id) return;
 
               const { data: camp } = await supabase
@@ -769,10 +764,10 @@ export default function AdvertiserNotificationsPage() {
           .subscribe()
       );
 
-      // 4) task_submissions — resolve task → campaign → advertiser
+      // 4) task_submissions
       channels.push(
         supabase
-          .channel(`rt-task-submissions:${user.id}`)
+          .channel(`rt-task-submissions-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -781,27 +776,17 @@ export default function AdvertiserNotificationsPage() {
               table: "task_submissions",
             },
             async (payload) => {
-              const row = (payload.new || payload.old) as {
-                id: string;
-                status?: string;
-              };
+              const row = (payload.new || payload.old) as any;
               if (!row?.id) return;
 
               const full = await fetchSubmissionWithOwnership(row.id);
               if (!full) return;
 
-              // Supabase nested shape can be object or array depending on relationship
               const taskRaw = full.campaign_tasks as unknown;
               const task = Array.isArray(taskRaw) ? taskRaw[0] : taskRaw;
               if (!task) return;
 
-              const campRaw = (
-                task as {
-                  campaigns?:
-                    | { id: string; title: string; advertiser_id: string }
-                    | { id: string; title: string; advertiser_id: string }[];
-                }
-              ).campaigns;
+              const campRaw = (task as any).campaigns;
               const camp = Array.isArray(campRaw) ? campRaw[0] : campRaw;
               if (!camp || camp.advertiser_id !== user.id) return;
 
@@ -815,7 +800,7 @@ export default function AdvertiserNotificationsPage() {
               if (event === "INSERT") {
                 title = "New task submission";
                 message = `A worker submitted proof for “${
-                  (task as { title?: string }).title || "a task"
+                  (task as any).title || "a task"
                 }” on “${camp.title}”.`;
                 type = "task_submission";
                 kind = "submitted";
@@ -865,7 +850,7 @@ export default function AdvertiserNotificationsPage() {
       // 5) transactions
       channels.push(
         supabase
-          .channel(`rt-transactions:${user.id}`)
+          .channel(`rt-transactions-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -875,18 +860,7 @@ export default function AdvertiserNotificationsPage() {
               filter: `user_id=eq.${user.id}`,
             },
             (payload) => {
-              const t = payload.new as {
-                id: string;
-                user_id: string;
-                transaction_type: string;
-                amount: number | string;
-                direction: string;
-                status: string;
-                campaign_id: string | null;
-                description: string | null;
-                created_at: string;
-              };
-
+              const t = payload.new as any;
               const amount = formatNaira(Number(t.amount) || 0);
               const dir = t.direction || "";
               const st = t.status || "";
@@ -917,7 +891,7 @@ export default function AdvertiserNotificationsPage() {
       // 6) wallets
       channels.push(
         supabase
-          .channel(`rt-wallets:${user.id}`)
+          .channel(`rt-wallets-adv:${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -927,14 +901,7 @@ export default function AdvertiserNotificationsPage() {
               filter: `user_id=eq.${user.id}`,
             },
             (payload) => {
-              const w = payload.new as {
-                id: string;
-                user_id: string;
-                available_balance: number | string;
-                pending_balance: number | string;
-                updated_at?: string;
-              };
-
+              const w = payload.new as any;
               const available = Number(w.available_balance) || 0;
               const pending = Number(w.pending_balance) || 0;
               const prev = walletCache.current;
@@ -1055,11 +1022,14 @@ export default function AdvertiserNotificationsPage() {
     if (!userId) return;
     const prev = notifications;
     setNotifications((list) => list.map((n) => ({ ...n, is_read: true })));
+
     const { error: err } = await supabase
       .from("notifications")
       .update({ is_read: true })
       .eq("user_id", userId)
+      .in("for_role", [ROLE, "all"])
       .eq("is_read", false);
+
     if (err) {
       setNotifications(prev);
       showToast("error", "Failed to mark all as read.");
@@ -1206,7 +1176,9 @@ export default function AdvertiserNotificationsPage() {
 
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Notifications</h1>
+            <h1 className="text-3xl font-bold text-slate-900">
+              Advertiser Notifications
+            </h1>
             <p className="mt-2 max-w-xl text-sm text-slate-500">
               Stay updated on your campaigns, task submissions, payments, and
               account activities.
