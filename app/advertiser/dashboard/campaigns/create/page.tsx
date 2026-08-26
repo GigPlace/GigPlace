@@ -330,12 +330,12 @@ export default function CreateCampaignPage() {
             </span>
             <div>
               <p className="text-sm font-medium text-[#0b3939]">Step 1 of 3</p>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="md:text-3xl text-xl font-bold text-[#0B3939]">
                 Select a Category
               </h1>
             </div>
           </div>
-          <p className="max-w-2xl text-gray-600">
+          <p className="max-w-2xl text-xs md:text-sm text-[#0B3939]">
             Click a category to instantly see its subcategories, then choose the
             service that best describes your campaign.
           </p>
@@ -360,8 +360,8 @@ export default function CreateCampaignPage() {
             className="mt-0.5 shrink-0 text-amber-600"
           />
           <div>
-            <h2 className="font-semibold text-amber-900">Choose carefully</h2>
-            <p className="mt-1 text-sm text-amber-800">
+            <h2 className="font-semibold text-sm md:text-lg text-amber-900">Choose carefully</h2>
+            <p className="mt-1 md:text-sm text-xs text-amber-800">
               Select the category and subcategory that best match your campaign.
             </p>
           </div>
@@ -379,7 +379,7 @@ export default function CreateCampaignPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {categories.map((category) => {
               const Icon = categoryIcons[category.slug || ""] || Globe;
               const isExpanded = expandedCategoryId === category.id;
@@ -405,7 +405,7 @@ export default function CreateCampaignPage() {
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-start gap-4">
                         <div
-                          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl transition ${
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition ${
                             isSelectedCategory
                               ? "bg-[#0b3939] text-white"
                               : "bg-[#0b3939]/10 text-[#0b3939]"
@@ -414,10 +414,10 @@ export default function CreateCampaignPage() {
                           <Icon size={25} />
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-gray-900">
+                          <h2 className="md:text-xl text-lg font-bold text-[#0B3939]">
                             {category.name}
                           </h2>
-                          <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
+                          <p className="mt-2 max-w-2xl text-xs md:text-sm leading-5 text-[#0B3939]">
                             {category.description ||
                               "Click to view available subcategories."}
                           </p>
@@ -429,7 +429,7 @@ export default function CreateCampaignPage() {
                         </div>
                       </div>
 
-                      <div className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#0b3939]/20 bg-[#0b3939]/5 px-5 py-3 text-sm font-semibold text-[#0b3939]">
+                      <div className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#0b3939]/20 bg-[#0b3939]/5 px-5 py-2 text-sm font-semibold text-[#0b3939]">
                         {isExpanded ? (
                           <>
                             Hide subcategories

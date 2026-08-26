@@ -303,12 +303,12 @@ export default function AdvertiserDashboardPage() {
               GigPlace Advertiser
             </span>
 
-            <h2 className="mt-4 max-w-2xl text-3xl font-extrabold leading-tight md:text-4xl">
+            <h2 className="mt-4 max-w-2xl md:text-3xl text-xl font-extrabold leading-tight ">
               Create campaigns and
               grow your reach.
             </h2>
 
-            <p className="mt-4 max-w-xl text-sm leading-7 text-white/65">
+            <p className="mt-4 max-w-xl md:text-sm text-xs md:leading-7 leading-4 text-white/65">
               Create campaigns, publish
               tasks, review submissions,
               and monitor campaign
@@ -318,7 +318,7 @@ export default function AdvertiserDashboardPage() {
           </div>
 
           <Link
-            href="/advertiser/campaigns/create"
+            href="/advertiser/dashboard/campaigns/create"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3.5 text-sm font-bold text-[#172554] transition hover:bg-cyan-50"
           >
             <PlusCircle className="h-4 w-4" />
@@ -342,7 +342,7 @@ export default function AdvertiserDashboardPage() {
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4 tect">
 
           <StatCard
             title="Total Campaigns"
@@ -599,16 +599,16 @@ function StatCard({
       <div className="flex items-start justify-between">
 
         <div>
-          <p className="text-sm font-semibold text-slate-500">
+          <p className="text-sm font-semibold text-[#0B3939]">
             {title}
           </p>
 
-          <h3 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">
+          <h3 className="mt-3 text-2xl font-extrabold tracking-tight text-[#0B3939]">
             {value}
           </h3>
         </div>
 
-        <div className="rounded-xl bg-[#172554]/10 p-3 text-[#172554]">
+        <div className="rounded-xl bg-[#172554]/10 p-3 text-[#0B3939]">
           {icon}
         </div>
       </div>
