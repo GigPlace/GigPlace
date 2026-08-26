@@ -1,8 +1,17 @@
 // components/home/PlatformStats.tsx
-import { Users, BriefcaseBusiness, CircleCheck, Wallet } from 'lucide-react';
-import { getPlatformStats, type PlatformStats } from '@/lib/platform-stats';
+'use client';
 
-async function StatsCard({
+import { useEffect, useState } from 'react';
+import { Users, BriefcaseBusiness, CircleCheck } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+type PlatformStats = {
+  totalUsers: number;
+  activeGigs: number;
+  verifiedCompletions: number;
+};
+
+function StatsCard({
   icon: Icon,
   label,
   value,
@@ -28,14 +37,64 @@ async function StatsCard({
   );
 }
 
-export default async function PlatformStats() {
-  const stats: PlatformStats = await getPlatformStats();
+async function fetchStats(): Promise<PlatformStats> {
+  const { data, error } = await supabase.rpc('get_platform_stats');
 
-  const formattedRewards = new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    maximumFractionDigits: 0,
-  }).format(stats.rewardsPaid);
+  if (error || !data) {
+    console.error('Failed to fetch platform stats:', error);
+    return {
+      totalUsers: 0,
+      activeGigs: 0,
+      verifiedCompletions: 0,
+    };
+  }
+
+  return {
+    totalUsers: Number(data.total_users) || 0,
+    activeGigs: Number(data.active_gigs) || 0,
+    verifiedCompletions: Number(data.verified_completions) || 0,
+  };
+}
+
+export default function PlatformStats() {
+  const [stats, setStats] = useState<PlatformStats>({
+    totalUsers: 0,
+    activeGigs: 0,
+    verifiedCompletions: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchStats().then((data) => {
+      setStats(data);
+      setLoading(false);
+    });
+
+    // Realtime subscriptions
+    const channel = supabase
+      .channel('platform-stats')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        async () => setStats(await fetchStats())
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campaigns' },
+        async () => setStats(await fetchStats())
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_submissions' },
+        async () => setStats(await fetchStats())
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <section className="py-20 bg-[#f7faf9]">
@@ -56,42 +115,35 @@ export default async function PlatformStats() {
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats Grid – 3 columns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <StatsCard
             icon={Users}
             label="Registered Users"
-            value={stats.totalUsers.toLocaleString('en-NG')}
+            value={loading ? '—' : stats.totalUsers.toLocaleString('en-NG')}
             description="Active members on the platform"
           />
 
           <StatsCard
             icon={BriefcaseBusiness}
             label="Active Gigs"
-            value={stats.activeGigs.toLocaleString('en-NG')}
+            value={loading ? '—' : stats.activeGigs.toLocaleString('en-NG')}
             description="Campaigns open for participation"
           />
 
           <StatsCard
             icon={CircleCheck}
             label="Verified Completions"
-            value={stats.verifiedCompletions.toLocaleString('en-NG')}
+            value={loading ? '—' : stats.verifiedCompletions.toLocaleString('en-NG')}
             description="Successfully approved tasks"
-          />
-
-          <StatsCard
-            icon={Wallet}
-            label="Rewards Paid"
-            value={formattedRewards}
-            description="Total earnings distributed"
           />
         </div>
 
         {/* Live Indicator */}
-        <div className="text-center mt-10 text-sm text-[#647575] flex items-center justify-center gap-2">
+        {/* <div className="text-center mt-10 text-sm text-[#647575] flex items-center justify-center gap-2">
           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
           Data updates in real-time
-        </div>
+        </div> */}
       </div>
     </section>
   );

@@ -104,99 +104,133 @@ export default function CreateCampaignPage() {
   }, []);
 
   const initialisePage = async () => {
-  try {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      router.replace("/login");
-      return;
-    }
+      if (authError || !user) {
+        router.replace("/login");
+        return;
+      }
 
-    setAdvertiserId(user.id);
+      setAdvertiserId(user.id);
 
-    // Clear any old campaign selection when this page opens
-    sessionStorage.removeItem("campaignSelection");
-    sessionStorage.removeItem("gigplace_campaign_draft");
+      // Clear any old campaign selection when this page opens
+      sessionStorage.removeItem("campaignSelection");
+      sessionStorage.removeItem("gigplace_campaign_draft");
+      localStorage.removeItem("campaignSelection");
+      localStorage.removeItem("gigplace_campaign_draft");
 
-    localStorage.removeItem("campaignSelection");
-    localStorage.removeItem("gigplace_campaign_draft");
-
-    const { data: categoriesData, error: categoriesError } =
-      await supabase
+      const { data: categoriesData, error: categoriesError } = await supabase
         .from("campaign_categories")
-        .select(
-          "id, name, slug, description, is_active, sort_order"
-        )
+        .select("id, name, slug, description, is_active, sort_order")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
 
-    if (categoriesError) throw categoriesError;
+      if (categoriesError) throw categoriesError;
 
-    const {
-      data: subcategoriesData,
-      error: subcategoriesError,
-    } = await supabase
-      .from("campaign_subcategories")
-      .select(
-        "id, category_id, name, slug, description, is_active, sort_order"
-      )
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+      const { data: subcategoriesData, error: subcategoriesError } =
+        await supabase
+          .from("campaign_subcategories")
+          .select(
+            "id, category_id, name, slug, description, is_active, sort_order"
+          )
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true });
 
-    if (subcategoriesError) throw subcategoriesError;
+      if (subcategoriesError) throw subcategoriesError;
 
-    setCategories(categoriesData || []);
-    setSubcategories(subcategoriesData || []);
+      setCategories(categoriesData || []);
+      setSubcategories(subcategoriesData || []);
 
-    // Do not restore any previously selected category
-    setSelectedCategory(null);
-    setSelectedSubcategory(null);
-    setExpandedCategoryId(null);
-  } catch (err: unknown) {
-    console.error("Campaign category error:", err);
+      setSelectedCategory(null);
+      setSelectedSubcategory(null);
+      setExpandedCategoryId(null);
+    } catch (err: unknown) {
+      console.error("Campaign category error:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load campaign categories."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Unable to load campaign categories."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  const getSubcategories = (categoryId: string) =>
+    subcategories.filter((s) => s.category_id === categoryId);
 
-  const handleToggleCategory = (category: CampaignCategory) => {
-    const isOpen = expandedCategoryId === category.id;
+  const handleSelectCategory = (category: CampaignCategory) => {
+    const isCurrentlyOpen = expandedCategoryId === category.id;
 
-    if (isOpen) {
+    if (isCurrentlyOpen) {
+      // Collapse if already open
       setExpandedCategoryId(null);
       return;
     }
 
+    // Open this category and show its subcategories
     setExpandedCategoryId(category.id);
     setSelectedCategory(category);
+    setError(null);
 
-    // Clear subcategory when switching to a different category
-    if (selectedCategory?.id !== category.id) {
+    const categorySubs = getSubcategories(category.id);
+
+    // Auto-select if there is only one subcategory
+    if (categorySubs.length === 1) {
+      setSelectedSubcategory(categorySubs[0]);
+    } else {
+      // Clear previous subcategory when switching categories
       setSelectedSubcategory(null);
     }
+
+    // Smooth scroll to the expanded section after a short delay
+    setTimeout(() => {
+      const el = document.getElementById(`category-${category.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }, 100);
   };
 
-  const handleSelectSubcategory = (
-    category: CampaignCategory,
-    subcategory: CampaignSubcategory
-  ) => {
-    setSelectedCategory(category);
-    setSelectedSubcategory(subcategory);
-    setExpandedCategoryId(category.id);
-    setError(null); // clear any previous validation error
+ const handleSelectSubcategory = (
+  category: CampaignCategory,
+  subcategory: CampaignSubcategory
+) => {
+  if (!advertiserId) {
+    setError("You must be signed in to create a campaign.");
+    router.replace("/login");
+    return;
+  }
+
+  setSelectedCategory(category);
+  setSelectedSubcategory(subcategory);
+  setExpandedCategoryId(category.id);
+  setError(null);
+
+  const selection: CampaignSelection = {
+    advertiserId,
+    category: {
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+    },
+    subcategory: {
+      id: subcategory.id,
+      name: subcategory.name,
+      slug: subcategory.slug,
+    },
   };
+
+  sessionStorage.setItem("campaignSelection", JSON.stringify(selection));
+  router.push("/advertiser/dashboard/campaigns/create/details");
+};
 
   const handleContinue = () => {
     if (!selectedCategory || !selectedSubcategory) {
@@ -229,9 +263,6 @@ export default function CreateCampaignPage() {
     sessionStorage.setItem("campaignSelection", JSON.stringify(selection));
     router.push("/advertiser/dashboard/campaigns/create/details");
   };
-
-  const getSubcategories = (categoryId: string) =>
-    subcategories.filter((s) => s.category_id === categoryId);
 
   /* ---------- LOADING ---------- */
   if (loading) {
@@ -305,7 +336,7 @@ export default function CreateCampaignPage() {
             </div>
           </div>
           <p className="max-w-2xl text-gray-600">
-            Select a category, expand its subcategory list, and choose the
+            Click a category to instantly see its subcategories, then choose the
             service that best describes your campaign.
           </p>
         </div>
@@ -358,13 +389,19 @@ export default function CreateCampaignPage() {
               return (
                 <div
                   key={category.id}
+                  id={`category-${category.id}`}
                   className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all ${
                     isExpanded
                       ? "border-[#0b3939]/40 shadow-md"
-                      : "border-gray-200"
+                      : "border-gray-200 hover:border-[#0b3939]/25"
                   }`}
                 >
-                  <div className="p-6">
+                  {/* Whole header is clickable */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCategory(category)}
+                    className="w-full p-6 text-left"
+                  >
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-start gap-4">
                         <div
@@ -382,16 +419,17 @@ export default function CreateCampaignPage() {
                           </h2>
                           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
                             {category.description ||
-                              "Choose a subcategory for this campaign."}
+                              "Click to view available subcategories."}
+                          </p>
+                          <p className="mt-2 text-xs font-medium text-[#0b3939]">
+                            {categorySubcategories.length} subcategor
+                            {categorySubcategories.length === 1 ? "y" : "ies"}{" "}
+                            available
                           </p>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleCategory(category)}
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#0b3939]/20 bg-[#0b3939]/5 px-5 py-3 text-sm font-semibold text-[#0b3939] transition hover:bg-[#0b3939] hover:text-white"
-                      >
+                      <div className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#0b3939]/20 bg-[#0b3939]/5 px-5 py-3 text-sm font-semibold text-[#0b3939]">
                         {isExpanded ? (
                           <>
                             Hide subcategories
@@ -403,10 +441,11 @@ export default function CreateCampaignPage() {
                             <ChevronDown size={17} />
                           </>
                         )}
-                      </button>
+                      </div>
                     </div>
-                  </div>
+                  </button>
 
+                  {/* Subcategories appear automatically when category is selected */}
                   {isExpanded && (
                     <div className="border-t border-gray-100 bg-[#f7faf9] p-6">
                       <div className="mb-5">

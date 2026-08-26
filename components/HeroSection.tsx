@@ -56,7 +56,7 @@ export default function Hero() {
           {/* Left content */}
           <div className="max-w-2xl space-y-6 sm:space-y-7 md:space-y-8">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3.5 py-2 text-[11px] font-medium text-[#0b3939] shadow backdrop-blur-md sm:px-5 sm:py-2.5 sm:text-sm">
+            <div className="inline-flex mt-10 items-center gap-2 rounded-full bg-white/95 px-3.5 py-2 text-[11px] font-medium text-[#0b3939] shadow backdrop-blur-md sm:px-5 sm:py-2.5 sm:text-sm">
               <Megaphone className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
               <span>Create campaigns. Complete tasks. Earn rewards.</span>
             </div>
@@ -73,14 +73,14 @@ export default function Hero() {
             <p className="max-w-xl text-sm leading-relaxed text-white/85 sm:text-base md:text-lg">
               GigPlace connects campaign creators with active users. Create
               promotional gigs, discover available tasks, complete verified
-              activities, and earn rewards—all from one platform.
+              activities, and earn rewards-all from one platform.
             </p>
 
             {/* CTA buttons */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href="/signup"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8ed1c8] px-6 py-3.5 text-sm font-semibold text-[#0b3939] transition hover:bg-[#7bc4ba] active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8ed1c8] md:px-6 px-4  md:py-3.5 py-2 md:text-sm text-xs font-semibold text-[#0b3939] transition hover:bg-[#7bc4ba] active:scale-[0.98]"
               >
                 <UserPlus className="h-4 w-4" />
                 Create free account
@@ -88,7 +88,7 @@ export default function Hero() {
 
               <Link
                 href="#explore"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white hover:text-[#0b3939]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 md:px-6 px-4  md:py-3.5 py-2 md:text-sm text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white hover:text-[#0b3939]"
               >
                 Explore gigs
                 <ArrowRight className="h-4 w-4" />
@@ -105,14 +105,14 @@ export default function Hero() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search available gigs or campaigns..."
-                    className="w-full bg-transparent py-3.5 text-sm text-gray-900 outline-none placeholder:text-gray-500 sm:py-5 sm:text-base"
+                    className="w-full bg-transparent md:py-3.5 py-2 md:text-sm text-xs text-gray-900 outline-none placeholder:text-gray-500 sm:py-5 sm:text-base"
                     aria-label="Search available gigs"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="flex items-center justify-center gap-2 bg-[#0b3939] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#062828] active:scale-[0.98] sm:px-8 sm:py-5 sm:text-base"
+                  className="flex items-center justify-center gap-2 bg-[#0b3939] px-6 md:py-3.5 py-2 md:text-sm text-xs font-semibold text-white transition hover:bg-[#062828] active:scale-[0.98] sm:px-8 sm:py-5 sm:text-base"
                 >
                   Explore Gigs
                   <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
