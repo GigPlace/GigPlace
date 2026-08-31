@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,6 +12,9 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+
+const FEE_RATE = 0.1; // 10%
+const MIN_WITHDRAWAL = 1000;
 
 const formatNaira = (amount: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -62,6 +65,16 @@ export default function WithdrawPage() {
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
 
+  const withdrawAmount = Number(amount) || 0;
+  const feeAmount = useMemo(
+    () => Math.round(withdrawAmount * FEE_RATE),
+    [withdrawAmount]
+  );
+  const netAmount = useMemo(
+    () => Math.max(0, withdrawAmount - feeAmount),
+    [withdrawAmount, feeAmount]
+  );
+
   const loadBalance = useCallback(async () => {
     try {
       const {
@@ -91,7 +104,7 @@ export default function WithdrawPage() {
     loadBalance();
   }, [loadBalance]);
 
-  // Real-time balance on this page too
+  // Real-time balance
   useEffect(() => {
     let channel: any;
 
@@ -142,16 +155,14 @@ export default function WithdrawPage() {
         return;
       }
 
-      const withdrawAmount = Number(amount);
-
       if (!withdrawAmount || withdrawAmount <= 0) {
         setError("Please enter a valid amount.");
         setSubmitting(false);
         return;
       }
 
-      if (withdrawAmount < 1000) {
-        setError("Minimum withdrawal amount is ₦1,000.");
+      if (withdrawAmount < MIN_WITHDRAWAL) {
+        setError(`Minimum withdrawal amount is ${formatNaira(MIN_WITHDRAWAL)}.`);
         setSubmitting(false);
         return;
       }
@@ -174,12 +185,18 @@ export default function WithdrawPage() {
         return;
       }
 
+      const fee = Math.round(withdrawAmount * FEE_RATE);
+      const net = withdrawAmount - fee;
+
       // 1. Create withdrawal request
+      // fee_amount / net_amount only work if those columns exist
       const { data: withdrawal, error: withdrawalError } = await supabase
         .from("withdrawals")
         .insert({
           user_id: user.id,
           amount: withdrawAmount,
+          fee_amount: fee,
+          net_amount: net,
           account_name: accountName.trim(),
           bank_name: bankName,
           account_number: accountNumber.trim(),
@@ -188,33 +205,84 @@ export default function WithdrawPage() {
         .select()
         .single();
 
-      if (withdrawalError) throw withdrawalError;
+      if (withdrawalError) {
+        // Fallback if fee columns don't exist yet
+        if (
+          withdrawalError.message?.includes("fee_amount") ||
+          withdrawalError.message?.includes("net_amount") ||
+          withdrawalError.code === "PGRST204"
+        ) {
+          const { data: fallbackWithdrawal, error: fallbackError } =
+            await supabase
+              .from("withdrawals")
+              .insert({
+                user_id: user.id,
+                amount: withdrawAmount,
+                account_name: accountName.trim(),
+                bank_name: bankName,
+                account_number: accountNumber.trim(),
+                status: "pending",
+              })
+              .select()
+              .single();
 
-      // 2. Deduct from available balance
-      const { error: walletError } = await supabase
-        .from("wallets")
-        .update({
-          available_balance: availableBalance - withdrawAmount,
-          // Optional: move to pending_balance if you want
-          // pending_balance: pending + withdrawAmount
-        })
-        .eq("user_id", user.id)
-        .gte("available_balance", withdrawAmount); // safety
+          if (fallbackError) throw fallbackError;
 
-      if (walletError) throw walletError;
+          // ---- Remove these 2 blocks if SQL triggers already handle them ----
+          const { error: walletError } = await supabase
+            .from("wallets")
+            .update({
+              available_balance: availableBalance - withdrawAmount,
+            })
+            .eq("user_id", user.id)
+            .gte("available_balance", withdrawAmount);
 
-      // 3. Create debit transaction
-      const { error: txError } = await supabase.from("transactions").insert({
-        user_id: user.id,
-        transaction_type: "withdrawal",
-        amount: withdrawAmount,
-        direction: "debit",
-        status: "pending",
-        reference: `wd_${withdrawal.id}`,
-        description: `Withdrawal to ${bankName} - ${accountNumber}`,
-      });
+          if (walletError) throw walletError;
 
-      if (txError) throw txError;
+          const { error: txError } = await supabase.from("transactions").insert({
+            user_id: user.id,
+            transaction_type: "withdrawal",
+            amount: withdrawAmount,
+            direction: "debit",
+            status: "pending",
+            reference: `wd_${fallbackWithdrawal.id}`,
+            description: `Withdrawal to ${bankName} - ${accountNumber} (Fee 10%: ${formatNaira(
+              fee
+            )}, Net: ${formatNaira(net)})`,
+          });
+
+          if (txError) throw txError;
+          // -------------------------------------------------------------------
+        } else {
+          throw withdrawalError;
+        }
+      } else {
+        // ---- Remove these 2 blocks if SQL triggers already handle them ----
+        const { error: walletError } = await supabase
+          .from("wallets")
+          .update({
+            available_balance: availableBalance - withdrawAmount,
+          })
+          .eq("user_id", user.id)
+          .gte("available_balance", withdrawAmount);
+
+        if (walletError) throw walletError;
+
+        const { error: txError } = await supabase.from("transactions").insert({
+          user_id: user.id,
+          transaction_type: "withdrawal",
+          amount: withdrawAmount,
+          direction: "debit",
+          status: "pending",
+          reference: `wd_${withdrawal.id}`,
+          description: `Withdrawal to ${bankName} - ${accountNumber} (Fee 10%: ${formatNaira(
+            fee
+          )}, Net: ${formatNaira(net)})`,
+        });
+
+        if (txError) throw txError;
+        // -------------------------------------------------------------------
+      }
 
       setSuccess(true);
       setAmount("");
@@ -222,16 +290,16 @@ export default function WithdrawPage() {
       setBankName("");
       setAccountNumber("");
 
-      // Refresh balance
       await loadBalance();
 
-      // Redirect after short delay
       setTimeout(() => {
         router.push("/dashboard/wallet");
       }, 2500);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Failed to process withdrawal. Please try again.");
+      setError(
+        err?.message || "Failed to process withdrawal. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -258,7 +326,8 @@ export default function WithdrawPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Withdraw Funds</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Request a withdrawal to your bank account.
+          Request a withdrawal to your bank account. A 10% processing fee
+          applies.
         </p>
       </div>
 
@@ -281,7 +350,11 @@ export default function WithdrawPage() {
               Withdrawal request submitted!
             </p>
             <p className="mt-1 text-sm text-emerald-700">
-              Your request is being processed. You will be redirected shortly.
+              Your request is being processed. You will receive{" "}
+              <span className="font-semibold">
+                {formatNaira(netAmount || 0)}
+              </span>{" "}
+              after the 10% fee. Redirecting shortly…
             </p>
           </div>
         </div>
@@ -294,7 +367,10 @@ export default function WithdrawPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
         {/* Amount */}
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-slate-700">
@@ -309,15 +385,37 @@ export default function WithdrawPage() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
-              min="1000"
+              min={MIN_WITHDRAWAL}
               step="100"
               className="w-full rounded-xl border border-slate-200 py-3 pl-8 pr-4 text-sm outline-none focus:border-[#0b3939] focus:ring-2 focus:ring-[#0b3939]/10"
             />
           </div>
           <p className="mt-1.5 text-xs text-slate-400">
-            Minimum withdrawal: ₦1,000
+            Minimum: {formatNaira(MIN_WITHDRAWAL)} · Platform fee: 10%
           </p>
         </div>
+
+        {/* Live fee breakdown */}
+        {withdrawAmount > 0 && (
+          <div className="space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <span>Withdrawal amount</span>
+              <span className="font-medium">
+                {formatNaira(withdrawAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Platform fee (10%)</span>
+              <span className="font-medium text-red-600">
+                −{formatNaira(feeAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold text-slate-900">
+              <span>You will receive</span>
+              <span className="text-[#0b3939]">{formatNaira(netAmount)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Account Name */}
         <div>
@@ -371,7 +469,7 @@ export default function WithdrawPage() {
 
         <button
           type="submit"
-          disabled={submitting || availableBalance < 1000}
+          disabled={submitting || availableBalance < MIN_WITHDRAWAL}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b3939] py-3.5 text-sm font-semibold text-white hover:bg-[#062b2b] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
@@ -382,7 +480,9 @@ export default function WithdrawPage() {
           ) : (
             <>
               <Banknote className="h-4 w-4" />
-              Request Withdrawal
+              {withdrawAmount > 0
+                ? `Withdraw · Receive ${formatNaira(netAmount)}`
+                : "Request Withdrawal"}
             </>
           )}
         </button>

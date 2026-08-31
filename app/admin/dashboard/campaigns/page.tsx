@@ -812,7 +812,8 @@ export default function AdminCampaignsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {campaigns.map((campaign) => (
-                    <tr key={campaign.id} className="hover:bg-gray-50">
+                    <tr key={campaign.id} className="hover:bg-gray-50 cursor-pointer"
+                     onClick={() => router.push(`/admin/dashboard/campaigns/${campaign.id}`)}>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           {campaign.cover_image_url ? (
@@ -855,7 +856,7 @@ export default function AdminCampaignsPage() {
                       <td className="relative px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
-                            href={`/admin/campaigns/${campaign.id}`}
+                            href={`/admin/dashboard/campaigns/${campaign.id}`}
                             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                             title="View"
                           >

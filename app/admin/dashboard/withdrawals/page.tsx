@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Clock3,
   Loader2,
-  MoreHorizontal,
   RefreshCw,
   Search,
   X,
@@ -27,6 +26,8 @@ type Withdrawal = {
   id: string;
   user_id: string;
   amount: number;
+  fee_amount: number;
+  net_amount: number;
   account_name: string;
   bank_name: string;
   account_number: string;
@@ -52,6 +53,7 @@ type Withdrawal = {
 };
 
 const PAGE_SIZE = 10;
+const FEE_RATE = 0.1; // 10% fallback if columns missing
 
 const formatNaira = (amount: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -85,6 +87,24 @@ const getStatusStyle = (status: WithdrawalStatus) => {
   }
 };
 
+/** Prefer DB fee/net; fallback to 10% of amount */
+const getFeeBreakdown = (w: {
+  amount: number;
+  fee_amount?: number | null;
+  net_amount?: number | null;
+}) => {
+  const amount = Number(w.amount || 0);
+  const fee =
+    w.fee_amount != null && Number(w.fee_amount) > 0
+      ? Number(w.fee_amount)
+      : Math.round(amount * FEE_RATE);
+  const net =
+    w.net_amount != null && Number(w.net_amount) > 0
+      ? Number(w.net_amount)
+      : amount - fee;
+  return { amount, fee, net };
+};
+
 export default function AdminWithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +125,6 @@ export default function AdminWithdrawalsPage() {
   );
   const [adminNote, setAdminNote] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const loadWithdrawals = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -118,9 +137,7 @@ export default function AdminWithdrawalsPage() {
           .from("withdrawals")
           .select("*")
           .order("created_at", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("id, full_name, user_name, email"),
+        supabase.from("profiles").select("id, full_name, user_name, email"),
         supabase
           .from("admin_profiles")
           .select("id, first_name, last_name, email"),
@@ -135,15 +152,26 @@ export default function AdminWithdrawalsPage() {
         (adminsRes.data || []).map((a) => [a.id, a])
       );
 
-      const mapped: Withdrawal[] = (withdrawalsRes.data || []).map((w) => ({
-        ...w,
-        amount: Number(w.amount || 0),
-        status: w.status as WithdrawalStatus,
-        worker: profilesMap.get(w.user_id),
-        processor: w.processed_by
-          ? adminsMap.get(w.processed_by)
-          : undefined,
-      }));
+      const mapped: Withdrawal[] = (withdrawalsRes.data || []).map((w) => {
+        const amount = Number(w.amount || 0);
+        const { fee, net } = getFeeBreakdown({
+          amount,
+          fee_amount: w.fee_amount,
+          net_amount: w.net_amount,
+        });
+
+        return {
+          ...w,
+          amount,
+          fee_amount: fee,
+          net_amount: net,
+          status: w.status as WithdrawalStatus,
+          worker: profilesMap.get(w.user_id),
+          processor: w.processed_by
+            ? adminsMap.get(w.processed_by)
+            : undefined,
+        };
+      });
 
       setWithdrawals(mapped);
     } catch (err: any) {
@@ -159,7 +187,6 @@ export default function AdminWithdrawalsPage() {
     loadWithdrawals();
   }, [loadWithdrawals]);
 
-  // Real-time
   useEffect(() => {
     const channel = supabase
       .channel("admin-withdrawals")
@@ -176,9 +203,11 @@ export default function AdminWithdrawalsPage() {
   }, [loadWithdrawals]);
 
   const stats = useMemo(() => {
+    const pendingList = withdrawals.filter((w) => w.status === "pending");
     return {
       total: withdrawals.length,
-      pending: withdrawals.filter((w) => w.status === "pending").length,
+      pending: pendingList.length,
+      pendingNet: pendingList.reduce((s, w) => s + w.net_amount, 0),
       paid: withdrawals.filter((w) => w.status === "paid").length,
       rejected: withdrawals.filter(
         (w) => w.status === "rejected" || w.status === "failed"
@@ -220,7 +249,6 @@ export default function AdminWithdrawalsPage() {
     setActionMode(mode);
     setAdminNote("");
     setPaymentReference("");
-    setActiveMenuId(null);
   };
 
   const closeAction = () => {
@@ -250,8 +278,10 @@ export default function AdminWithdrawalsPage() {
 
       if (!user) throw new Error("Not authenticated");
 
+      const { amount, fee, net } = getFeeBreakdown(selectedWithdrawal);
+
       if (actionMode === "approve") {
-        // 1. Mark withdrawal as paid
+        // Pay the USER the net amount (after 10% fee)
         const { error: updateError } = await supabase
           .from("withdrawals")
           .update({
@@ -259,31 +289,34 @@ export default function AdminWithdrawalsPage() {
             processed_by: user.id,
             processed_at: new Date().toISOString(),
             payment_reference: paymentReference.trim() || null,
-            admin_note: adminNote.trim() || "Paid successfully",
+            admin_note:
+              adminNote.trim() ||
+              `Paid net ${formatNaira(net)} (fee ${formatNaira(fee)})`,
             updated_at: new Date().toISOString(),
           })
           .eq("id", selectedWithdrawal.id)
-          .eq("status", "pending"); // safety
+          .eq("status", "pending");
 
         if (updateError) throw updateError;
 
-        // 2. Update wallet total_withdrawn
+        // total_withdrawn tracks full amount taken from wallet
         const { data: wallet } = await supabase
           .from("wallets")
           .select("total_withdrawn")
           .eq("user_id", selectedWithdrawal.user_id)
           .single();
 
+        // Only bump total_withdrawn if your request flow did NOT already do it
+        // (If the withdraw page / trigger already increased it, remove this block)
         await supabase
           .from("wallets")
           .update({
             total_withdrawn:
-              Number(wallet?.total_withdrawn || 0) + selectedWithdrawal.amount,
+              Number(wallet?.total_withdrawn || 0) + amount,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", selectedWithdrawal.user_id);
 
-        // 3. Update the related transaction to completed
         await supabase
           .from("transactions")
           .update({
@@ -293,13 +326,10 @@ export default function AdminWithdrawalsPage() {
           .eq("reference", `wd_${selectedWithdrawal.id}`);
 
         setSuccessMessage(
-          `Withdrawal of ${formatNaira(
-            selectedWithdrawal.amount
-          )} marked as paid.`
+          `Marked as paid. Transfer ${formatNaira(net)} to the user (fee kept: ${formatNaira(fee)}).`
         );
       } else {
-        // REJECT
-        // 1. Mark as rejected
+        // REJECT — refund FULL amount that was deducted from wallet
         const { error: updateError } = await supabase
           .from("withdrawals")
           .update({
@@ -314,7 +344,6 @@ export default function AdminWithdrawalsPage() {
 
         if (updateError) throw updateError;
 
-        // 2. Refund the amount back to available_balance
         const { data: wallet } = await supabase
           .from("wallets")
           .select("available_balance")
@@ -325,13 +354,11 @@ export default function AdminWithdrawalsPage() {
           .from("wallets")
           .update({
             available_balance:
-              Number(wallet?.available_balance || 0) +
-              selectedWithdrawal.amount,
+              Number(wallet?.available_balance || 0) + amount,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", selectedWithdrawal.user_id);
 
-        // 3. Update transaction status
         await supabase
           .from("transactions")
           .update({
@@ -341,11 +368,10 @@ export default function AdminWithdrawalsPage() {
           })
           .eq("reference", `wd_${selectedWithdrawal.id}`);
 
-        // 4. Create a credit (refund) transaction for clarity
         await supabase.from("transactions").insert({
           user_id: selectedWithdrawal.user_id,
           transaction_type: "withdrawal_refund",
-          amount: selectedWithdrawal.amount,
+          amount,
           direction: "credit",
           status: "completed",
           reference: `refund_${selectedWithdrawal.id}`,
@@ -353,9 +379,7 @@ export default function AdminWithdrawalsPage() {
         });
 
         setSuccessMessage(
-          `Withdrawal rejected and ${formatNaira(
-            selectedWithdrawal.amount
-          )} refunded to user.`
+          `Withdrawal rejected. ${formatNaira(amount)} refunded to user.`
         );
       }
 
@@ -395,7 +419,8 @@ export default function AdminWithdrawalsPage() {
             Withdrawals
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Review and process user withdrawal requests.
+            Review requests. Pay the <strong>net amount</strong> (after 10%
+            fee) to the user.
           </p>
         </div>
 
@@ -444,6 +469,9 @@ export default function AdminWithdrawalsPage() {
           {
             label: "Pending",
             value: stats.pending,
+            sub: stats.pending
+              ? `Net to pay: ${formatNaira(stats.pendingNet)}`
+              : undefined,
             icon: Clock3,
             style: "bg-amber-50 text-amber-600",
           },
@@ -470,6 +498,11 @@ export default function AdminWithdrawalsPage() {
                 <p className="mt-2 text-3xl font-bold text-slate-900">
                   {card.value}
                 </p>
+                {card.sub && (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    {card.sub}
+                  </p>
+                )}
               </div>
               <div
                 className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.style}`}
@@ -520,7 +553,7 @@ export default function AdminWithdrawalsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/70">
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
@@ -528,6 +561,12 @@ export default function AdminWithdrawalsPage() {
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
                       Amount
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
+                      Fee (10%)
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
+                      Pay user
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
                       Bank Details
@@ -559,6 +598,12 @@ export default function AdminWithdrawalsPage() {
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900">
                         {formatNaira(w.amount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-red-600">
+                        −{formatNaira(w.fee_amount)}
+                      </td>
+                      <td className="px-6 py-4 font-bold text-[#0b3939]">
+                        {formatNaira(w.net_amount)}
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-medium text-slate-800">
@@ -648,19 +693,42 @@ export default function AdminWithdrawalsPage() {
                   : "Reject Withdrawal"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                {formatNaira(selectedWithdrawal.amount)} →{" "}
+                {getWorkerName(selectedWithdrawal)} ·{" "}
                 {selectedWithdrawal.account_name}
               </p>
             </div>
 
             <div className="space-y-4 px-6 py-5">
-              <div className="rounded-xl bg-slate-50 p-4 text-sm">
-                <p>
-                  <span className="text-slate-500">Bank:</span>{" "}
-                  {selectedWithdrawal.bank_name}
-                </p>
-                <p className="mt-1">
-                  <span className="text-slate-500">Account:</span>{" "}
+              {/* Fee breakdown */}
+              <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>Requested</span>
+                  <span className="font-medium">
+                    {formatNaira(selectedWithdrawal.amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Platform fee (10%)</span>
+                  <span className="font-medium text-red-600">
+                    −{formatNaira(selectedWithdrawal.fee_amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold text-slate-900">
+                  <span>
+                    {actionMode === "approve"
+                      ? "Transfer to user"
+                      : "Refund to wallet"}
+                  </span>
+                  <span className="text-[#0b3939]">
+                    {formatNaira(
+                      actionMode === "approve"
+                        ? selectedWithdrawal.net_amount
+                        : selectedWithdrawal.amount
+                    )}
+                  </span>
+                </div>
+                <p className="pt-1 text-xs text-slate-500">
+                  {selectedWithdrawal.bank_name} ·{" "}
                   {selectedWithdrawal.account_number}
                 </p>
               </div>
@@ -722,7 +790,9 @@ export default function AdminWithdrawalsPage() {
                 {actionLoading && (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                {actionMode === "approve" ? "Mark as Paid" : "Reject & Refund"}
+                {actionMode === "approve"
+                  ? `Mark paid · ${formatNaira(selectedWithdrawal.net_amount)}`
+                  : `Reject & refund ${formatNaira(selectedWithdrawal.amount)}`}
               </button>
             </div>
           </div>

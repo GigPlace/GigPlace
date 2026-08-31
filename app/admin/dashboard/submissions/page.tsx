@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   AlertCircle,
+  ArrowLeft,
   Check,
   CheckCircle2,
   ClipboardCheck,
@@ -17,6 +18,7 @@ import {
   FileVideo,
   Image as ImageIcon,
   Loader2,
+  Megaphone,
   MoreHorizontal,
   RefreshCw,
   Search,
@@ -67,23 +69,15 @@ type Submission = {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
-
-  task?: {
-    id: string;
-    title: string;
-    campaign_id: string;
-  };
-
-  campaign?: {
-    id: string;
-    title: string | null;
-  };
-
+  task?: { id: string; title: string; campaign_id: string };
+  campaign?: { id: string; title: string | null };
   worker?: WorkerProfile;
   reviewer?: AdminProfile;
 };
 
-type DashboardStats = {
+type CampaignCardData = {
+  id: string;
+  title: string;
   total: number;
   pending: number;
   approved: number;
@@ -100,13 +94,9 @@ const PAGE_SIZE = 10;
 
 const parseProofUrls = (proofUrl: any): string[] => {
   if (!proofUrl) return [];
-
-  // Already an array (jsonb)
   if (Array.isArray(proofUrl)) {
     return proofUrl.filter((u) => typeof u === "string" && u.trim());
   }
-
-  // Stored as JSON string
   if (typeof proofUrl === "string") {
     try {
       const parsed = JSON.parse(proofUrl);
@@ -118,7 +108,6 @@ const parseProofUrls = (proofUrl: any): string[] => {
       return [proofUrl];
     }
   }
-
   return [];
 };
 
@@ -174,10 +163,15 @@ export default function AdminSubmissionsPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Drill-down: null = campaign cards, string = selected campaign id
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
+    null
+  );
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [campaignFilter, setCampaignFilter] = useState("all");
   const [taskFilter, setTaskFilter] = useState("all");
+  const [campaignSearch, setCampaignSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
@@ -222,7 +216,6 @@ export default function AdminSubmissionsPage() {
           `
           )
           .order("created_at", { ascending: false }),
-
         supabase.from("campaign_tasks").select("id, title, campaign_id"),
         supabase.from("campaigns").select("id, title"),
         supabase.from("profiles").select("id, full_name, user_name, email"),
@@ -336,34 +329,105 @@ export default function AdminSubmissionsPage() {
 
   useEffect(() => {
     setTaskFilter("all");
+    setStatusFilter("all");
+    setSearchQuery("");
     setCurrentPage(1);
-  }, [campaignFilter]);
+  }, [selectedCampaignId]);
 
-  /* -------------------- Derived data -------------------- */
+  /* -------------------- Campaign cards data -------------------- */
+
+  const campaignCards: CampaignCardData[] = useMemo(() => {
+    const byCampaign = new Map<string, CampaignCardData>();
+
+    // Seed with known campaigns
+    campaigns.forEach((c) => {
+      byCampaign.set(c.id, {
+        id: c.id,
+        title: c.title || "Untitled Campaign",
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+      });
+    });
+
+    submissions.forEach((s) => {
+      const id = s.campaign?.id;
+      if (!id) return;
+
+      if (!byCampaign.has(id)) {
+        byCampaign.set(id, {
+          id,
+          title: s.campaign?.title || "Untitled Campaign",
+          total: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+        });
+      }
+
+      const card = byCampaign.get(id)!;
+      card.total += 1;
+      if (s.status === "pending") card.pending += 1;
+      if (s.status === "approved") card.approved += 1;
+      if (s.status === "rejected") card.rejected += 1;
+    });
+
+    let list = Array.from(byCampaign.values());
+
+    // Only show campaigns that have at least one submission (optional)
+    // list = list.filter((c) => c.total > 0);
+
+    const q = campaignSearch.toLowerCase().trim();
+    if (q) {
+      list = list.filter((c) => c.title.toLowerCase().includes(q));
+    }
+
+    // Pending first, then by total
+    list.sort((a, b) => {
+      if (b.pending !== a.pending) return b.pending - a.pending;
+      return b.total - a.total;
+    });
+
+    return list;
+  }, [campaigns, submissions, campaignSearch]);
+
+  const selectedCampaign = useMemo(
+    () => campaignCards.find((c) => c.id === selectedCampaignId) || null,
+    [campaignCards, selectedCampaignId]
+  );
+
+  /* -------------------- Submissions for selected campaign -------------------- */
 
   const availableTasks = useMemo(() => {
-    if (campaignFilter === "all") return tasks;
-    return tasks.filter((t) => t.campaign_id === campaignFilter);
-  }, [tasks, campaignFilter]);
+    if (!selectedCampaignId) return [];
+    return tasks.filter((t) => t.campaign_id === selectedCampaignId);
+  }, [tasks, selectedCampaignId]);
 
-  const stats: DashboardStats = useMemo(
+  const campaignSubmissions = useMemo(() => {
+    if (!selectedCampaignId) return [];
+    return submissions.filter((s) => s.campaign?.id === selectedCampaignId);
+  }, [submissions, selectedCampaignId]);
+
+  const stats = useMemo(
     () => ({
-      total: submissions.length,
-      pending: submissions.filter((s) => s.status === "pending").length,
-      approved: submissions.filter((s) => s.status === "approved").length,
-      rejected: submissions.filter((s) => s.status === "rejected").length,
+      total: campaignSubmissions.length,
+      pending: campaignSubmissions.filter((s) => s.status === "pending").length,
+      approved: campaignSubmissions.filter((s) => s.status === "approved")
+        .length,
+      rejected: campaignSubmissions.filter((s) => s.status === "rejected")
+        .length,
     }),
-    [submissions]
+    [campaignSubmissions]
   );
 
   const filteredSubmissions = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
 
-    return submissions.filter((submission) => {
+    return campaignSubmissions.filter((submission) => {
       const workerName = submission.worker?.full_name || "";
       const userName = submission.worker?.user_name || "";
       const workerEmail = submission.worker?.email || "";
-      const campaignTitle = submission.campaign?.title || "";
       const taskTitle = submission.task?.title || "";
 
       const matchesSearch =
@@ -372,22 +436,17 @@ export default function AdminSubmissionsPage() {
         workerName.toLowerCase().includes(query) ||
         userName.toLowerCase().includes(query) ||
         workerEmail.toLowerCase().includes(query) ||
-        campaignTitle.toLowerCase().includes(query) ||
         taskTitle.toLowerCase().includes(query);
 
       const matchesStatus =
         statusFilter === "all" || submission.status === statusFilter;
 
-      const matchesCampaign =
-        campaignFilter === "all" ||
-        submission.campaign?.id === campaignFilter;
-
       const matchesTask =
         taskFilter === "all" || submission.task_id === taskFilter;
 
-      return matchesSearch && matchesStatus && matchesCampaign && matchesTask;
+      return matchesSearch && matchesStatus && matchesTask;
     });
-  }, [submissions, searchQuery, statusFilter, campaignFilter, taskFilter]);
+  }, [campaignSubmissions, searchQuery, statusFilter, taskFilter]);
 
   const totalPages = Math.max(
     1,
@@ -406,7 +465,6 @@ export default function AdminSubmissionsPage() {
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
-    setCampaignFilter("all");
     setTaskFilter("all");
     setCurrentPage(1);
   };
@@ -473,11 +531,6 @@ export default function AdminSubmissionsPage() {
 
       if (updateError) throw updateError;
 
-      // The database trigger will automatically:
-      // 1. Credit the worker's wallet
-      // 2. Create a transaction
-      // 3. Increase completed_slots / completed_workers
-
       setSuccessMessage(
         reviewMode === "approve"
           ? `Submission approved! ₦${selectedSubmission.reward_amount.toLocaleString()} has been credited to the worker automatically.`
@@ -524,31 +577,41 @@ export default function AdminSubmissionsPage() {
   const getProofNote = (submission: Submission) =>
     submission.proof_text || submission.proof_note || null;
 
+  const globalStats = useMemo(
+    () => ({
+      total: submissions.length,
+      pending: submissions.filter((s) => s.status === "pending").length,
+      approved: submissions.filter((s) => s.status === "approved").length,
+      rejected: submissions.filter((s) => s.status === "rejected").length,
+    }),
+    [submissions]
+  );
+
   const dashboardCards = [
     {
       title: "Total Submissions",
-      value: stats.total,
+      value: globalStats.total,
       description: "All worker task submissions",
       icon: ClipboardCheck,
       iconStyle: "bg-blue-50 text-blue-600",
     },
     {
       title: "Pending Review",
-      value: stats.pending,
+      value: globalStats.pending,
       description: "Waiting for admin review",
       icon: Clock3,
       iconStyle: "bg-amber-50 text-amber-600",
     },
     {
       title: "Approved",
-      value: stats.approved,
+      value: globalStats.approved,
       description: "Successfully verified + paid",
       icon: CheckCircle2,
       iconStyle: "bg-emerald-50 text-emerald-600",
     },
     {
       title: "Rejected",
-      value: stats.rejected,
+      value: globalStats.rejected,
       description: "Returned or declined",
       icon: XCircle,
       iconStyle: "bg-red-50 text-red-600",
@@ -568,20 +631,210 @@ export default function AdminSubmissionsPage() {
     );
   }
 
+  /* ======================================================================== */
+  /* VIEW 1: Campaign cards                                                   */
+  /* ======================================================================== */
+
+  if (!selectedCampaignId) {
+    return (
+      <div className="space-y-7">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#0b3939]">
+              Submission Management
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+              Task Submissions
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Select a campaign to review its worker task submissions.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => loadSubmissions(true)}
+            disabled={refreshing}
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+            {refreshing ? "Refreshing..." : "Refresh Data"}
+          </button>
+        </div>
+
+        {successMessage && (
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+              <p className="text-sm font-medium text-emerald-800">
+                {successMessage}
+              </p>
+            </div>
+            <button type="button" onClick={() => setSuccessMessage("")}>
+              <X className="h-4 w-4 text-emerald-700" />
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 text-red-600" />
+              <div>
+                <p className="text-sm font-semibold text-red-800">Error</p>
+                <p className="mt-1 text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                loadSubmissions(true);
+              }}
+              className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {dashboardCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.title}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">
+                      {card.title}
+                    </p>
+                    <h2 className="mt-3 text-3xl font-bold text-slate-900">
+                      {card.value.toLocaleString()}
+                    </h2>
+                  </div>
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.iconStyle}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+                <p className="mt-4 text-xs text-slate-500">{card.description}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Search campaigns */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={campaignSearch}
+            onChange={(e) => setCampaignSearch(e.target.value)}
+            placeholder="Search campaigns..."
+            className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-[#0b3939] focus:ring-2 focus:ring-[#0b3939]/10"
+          />
+        </div>
+
+        {/* Campaign cards grid */}
+        {campaignCards.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
+            <Megaphone className="mx-auto h-12 w-12 text-slate-300" />
+            <h3 className="mt-4 font-semibold text-slate-700">
+              No campaigns found
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              Campaigns with task submissions will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {campaignCards.map((card) => (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setSelectedCampaignId(card.id)}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-[#0b3939]/40 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0b3939]/10 text-[#0b3939]">
+                      <Megaphone className="h-5 w-5" />
+                    </div>
+                    <h3 className="truncate text-lg font-bold text-slate-900 group-hover:text-[#0b3939]">
+                      {card.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {card.total} submission{card.total === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  {card.pending > 0 && (
+                    <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      {card.pending} pending
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+                  <div>
+                    <p className="text-xs text-slate-400">Pending</p>
+                    <p className="mt-0.5 text-sm font-bold text-amber-600">
+                      {card.pending}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Approved</p>
+                    <p className="mt-0.5 text-sm font-bold text-emerald-600">
+                      {card.approved}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Rejected</p>
+                    <p className="mt-0.5 text-sm font-bold text-red-600">
+                      {card.rejected}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs font-semibold text-[#0b3939] opacity-0 transition group-hover:opacity-100">
+                  View submissions →
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ======================================================================== */
+  /* VIEW 2: Submissions for selected campaign                                */
+  /* ======================================================================== */
+
   return (
     <div className="space-y-7">
-      {/* Header */}
+      {/* Header with back */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[#0b3939]">
-            Submission Management
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-            Task Submissions
+          <button
+            type="button"
+            onClick={() => setSelectedCampaignId(null)}
+            className="mb-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0b3939] hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to campaigns
+          </button>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {selectedCampaign?.title || "Campaign submissions"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-500">
-            Review worker submissions, verify proof, and approve to automatically
-            credit rewards.
+            Review worker submissions for this campaign and approve to credit
+            rewards.
           </p>
         </div>
 
@@ -634,9 +887,34 @@ export default function AdminSubmissionsPage() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Campaign-level stats */}
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardCards.map((card) => {
+        {[
+          {
+            title: "Total",
+            value: stats.total,
+            icon: ClipboardCheck,
+            iconStyle: "bg-blue-50 text-blue-600",
+          },
+          {
+            title: "Pending",
+            value: stats.pending,
+            icon: Clock3,
+            iconStyle: "bg-amber-50 text-amber-600",
+          },
+          {
+            title: "Approved",
+            value: stats.approved,
+            icon: CheckCircle2,
+            iconStyle: "bg-emerald-50 text-emerald-600",
+          },
+          {
+            title: "Rejected",
+            value: stats.rejected,
+            icon: XCircle,
+            iconStyle: "bg-red-50 text-red-600",
+          },
+        ].map((card) => {
           const Icon = card.icon;
           return (
             <div
@@ -658,20 +936,19 @@ export default function AdminSubmissionsPage() {
                   <Icon className="h-5 w-5" />
                 </div>
               </div>
-              <p className="mt-4 text-xs text-slate-500">{card.description}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Main Card */}
+      {/* Submissions table card */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 border-b border-slate-100 px-5 py-5 lg:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="font-bold text-slate-900">All Submissions</h2>
+              <h2 className="font-bold text-slate-900">Submissions</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Monitor and review worker task completion records.
+                Task completion records for this campaign.
               </p>
             </div>
             <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
@@ -679,7 +956,7 @@ export default function AdminSubmissionsPage() {
             </span>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_160px_200px_200px]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_160px_220px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -689,7 +966,7 @@ export default function AdminSubmissionsPage() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search worker, campaign, task or submission ID..."
+                placeholder="Search worker, task or submission ID..."
                 className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-[#0b3939] focus:ring-2 focus:ring-[#0b3939]/10"
               />
             </div>
@@ -706,22 +983,6 @@ export default function AdminSubmissionsPage() {
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
-            </select>
-
-            <select
-              value={campaignFilter}
-              onChange={(e) => {
-                setCampaignFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-            >
-              <option value="all">All Campaigns</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title || "Untitled Campaign"}
-                </option>
-              ))}
             </select>
 
             <select
@@ -742,14 +1003,14 @@ export default function AdminSubmissionsPage() {
           </div>
         </div>
 
-        {submissions.length === 0 ? (
+        {campaignSubmissions.length === 0 ? (
           <div className="px-6 py-20 text-center">
             <ClipboardX className="mx-auto h-12 w-12 text-slate-300" />
             <h3 className="mt-4 font-semibold text-slate-700">
-              No submissions found
+              No submissions yet
             </h3>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-              Worker task submissions will appear here once tasks are completed.
+              Workers haven’t submitted proof for this campaign’s tasks yet.
             </p>
           </div>
         ) : filteredSubmissions.length === 0 ? (
@@ -769,14 +1030,14 @@ export default function AdminSubmissionsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1300px]">
+              <table className="w-full min-w-[1100px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/70">
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Worker
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Campaign & Task
+                      Task
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Proof Preview
@@ -831,9 +1092,6 @@ export default function AdminSubmissionsPage() {
 
                         <td className="px-6 py-4">
                           <p className="font-semibold text-slate-800">
-                            {submission.campaign?.title || "Unknown Campaign"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
                             {submission.task?.title || "Unknown Task"}
                           </p>
                         </td>
@@ -1021,7 +1279,10 @@ export default function AdminSubmissionsPage() {
               <div className="flex flex-col gap-4 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
                 <p className="text-sm text-slate-500">
                   Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
-                  {Math.min(currentPage * PAGE_SIZE, filteredSubmissions.length)}{" "}
+                  {Math.min(
+                    currentPage * PAGE_SIZE,
+                    filteredSubmissions.length
+                  )}{" "}
                   of {filteredSubmissions.length} submissions
                 </p>
                 <div className="flex items-center gap-3">
@@ -1053,7 +1314,7 @@ export default function AdminSubmissionsPage() {
         )}
       </div>
 
-      {/* Review Modal */}
+      {/* Review Modal — unchanged from your original */}
       {selectedSubmission && reviewMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
