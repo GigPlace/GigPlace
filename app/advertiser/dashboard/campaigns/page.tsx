@@ -8,9 +8,7 @@ import {
   Loader2,
   AlertCircle,
   Search,
-  Filter,
   Eye,
-  Calendar,
   Users,
   Wallet,
 } from "lucide-react";
@@ -114,7 +112,6 @@ export default function AdvertiserCampaignsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      {/* Header */}
       <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">My Campaigns</h1>
@@ -132,7 +129,6 @@ export default function AdvertiserCampaignsPage() {
         </Link>
       </div>
 
-      {/* Search & Filter */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search
@@ -149,7 +145,6 @@ export default function AdvertiserCampaignsPage() {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="mb-8 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
           <AlertCircle size={20} />
@@ -157,15 +152,12 @@ export default function AdvertiserCampaignsPage() {
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && filteredCampaigns.length === 0 && (
         <div className="rounded-3xl border border-slate-200 bg-white p-16 text-center">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
             <Wallet size={28} className="text-slate-400" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900">
-            No campaigns yet
-          </h2>
+          <h2 className="text-xl font-bold text-slate-900">No campaigns yet</h2>
           <p className="mt-2 text-slate-500">
             Create your first campaign to start reaching workers.
           </p>
@@ -179,7 +171,6 @@ export default function AdvertiserCampaignsPage() {
         </div>
       )}
 
-      {/* Campaigns Grid */}
       {filteredCampaigns.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {filteredCampaigns.map((campaign) => {
@@ -191,11 +182,11 @@ export default function AdvertiserCampaignsPage() {
                 : 0;
 
             return (
-              <div
+              <Link
                 key={campaign.id}
-                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+                href={`/advertiser/dashboard/campaigns/${campaign.id}/view`}
+                className="block rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-[#0b3939]/40 hover:shadow-md"
               >
-                {/* Status + Date */}
                 <div className="mb-4 flex items-center justify-between">
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getStatusColor(
@@ -209,12 +200,10 @@ export default function AdvertiserCampaignsPage() {
                   </span>
                 </div>
 
-                {/* Title */}
                 <h3 className="text-lg font-bold text-slate-900 line-clamp-2">
                   {campaign.title}
                 </h3>
 
-                {/* Stats */}
                 <div className="mt-6 space-y-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-slate-500">
@@ -236,7 +225,6 @@ export default function AdvertiserCampaignsPage() {
                     </span>
                   </div>
 
-                  {/* Progress Bar */}
                   <div className="mt-2">
                     <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                       <div
@@ -250,17 +238,11 @@ export default function AdvertiserCampaignsPage() {
                   </div>
                 </div>
 
-                {/* Action */}
-                <div className="mt-6">
-                  <Link
-                    href={`/advertiser/dashboard/campaigns/${campaign.id}/view`}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#0b3939] hover:text-[#0b3939]"
-                  >
-                    <Eye size={16} />
-                    View Details
-                  </Link>
+                <div className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-700">
+                  <Eye size={16} />
+                  View progress
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
