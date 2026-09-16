@@ -96,7 +96,7 @@ export default function Hero() {
             </div>
 
             {/* Search */}
-            <form onSubmit={handleSearch} className="relative max-w-2xl">
+            {/* <form onSubmit={handleSearch} className="relative max-w-2xl">
               <div className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-all focus-within:ring-4 focus-within:ring-white/30 sm:flex-row sm:rounded-3xl">
                 <div className="flex flex-1 items-center px-4 sm:px-5">
                   <Search className="mr-2 h-5 w-5 shrink-0 text-gray-400 sm:mr-3" />
@@ -118,10 +118,10 @@ export default function Hero() {
                   <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
-            </form>
+            </form> */}
 
             {/* Categories */}
-            <div>
+            {/* <div>
               <p className="mb-2.5 text-xs font-medium text-white/80 sm:mb-3 sm:text-sm">
                 Explore popular gig categories
               </p>
@@ -137,7 +137,7 @@ export default function Hero() {
                   </Link>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             {/* Trust bar */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-xs text-white/90 sm:gap-x-6 sm:gap-y-3 sm:pt-2 sm:text-sm">

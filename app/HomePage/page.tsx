@@ -8,7 +8,7 @@ const page = () => {
     <div>
         <Navbar/>
         <HeroSection/>
-        <PlatformStats/>
+        {/* <PlatformStats/> */}
     </div>
   )
 }
