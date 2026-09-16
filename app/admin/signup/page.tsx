@@ -145,15 +145,16 @@ export default function AdminSignUpPage() {
         email: formData.email,
         password: formData.password,
         options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-            nationality: formData.nationality,
-            state: formData.state,
-            lga: formData.lga,
+            data: {
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              phone: formData.phone,
+              nationality: formData.nationality,
+              state: formData.state,
+              lga: formData.lga,
+              role: "admin",
+            },
           },
-        },
       });
 
       if (error) {
