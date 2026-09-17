@@ -243,9 +243,19 @@ export default function AdminLoginPage() {
 
                 {/* Password */}
                 <div>
+                  <div className="flex items-center justify-between">
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Password
                   </label>
+                                   
+                    <Link
+                      href="/admin/forgot-password"
+                      className="text-sm font-medium text-[#0b3939] hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+</div>
+                  
                   <div
                     className={`flex items-center rounded-xl border bg-slate-50 px-4 transition focus-within:border-[#0b3939] focus-within:ring-4 focus-within:ring-[#0b3939]/10 ${
                       errors.password ? "border-red-300" : "border-slate-200"
@@ -283,6 +293,7 @@ export default function AdminLoginPage() {
                       )}
                     </button>
                   </div>
+ 
                   {errors.password && (
                     <p className="mt-1.5 text-xs text-red-600">
                       {errors.password}
@@ -318,7 +329,9 @@ export default function AdminLoginPage() {
                   Create Admin Account
                 </Link>
               </p>
+              
             </div>
+            
           </div>
         </section>
       </div>
