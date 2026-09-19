@@ -1269,7 +1269,8 @@ export default function AdminAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatNaira(v)} />
+                  {/* <Tooltip formatter={(v: number) => formatNaira(v)} /> */}
+                  <Tooltip formatter={(v) => formatNaira(Number(v ?? 0))} />
                   <Area
                     type="monotone"
                     dataKey="value"
