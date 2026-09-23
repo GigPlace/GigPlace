@@ -360,28 +360,7 @@ export default function ReviewCampaignPage() {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || !hasEnoughBalance}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b3939] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#062828] disabled:cursor-not-allowed disabled:opacity-50 sm:gap-3 sm:rounded-2xl sm:py-4 sm:text-base"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="animate-spin" size={20} />
-              Processing...
-            </>
-          ) : (
-            <>
-              <Send size={18} className="shrink-0 sm:h-5 sm:w-5" />
-              <span className="text-center leading-tight">
-                {hasEnoughBalance
-                  ? "Submit & Pay from Wallet"
-                  : "Insufficient Balance"}
-              </span>
-            </>
-          )}
-        </button>
+        
       </div>
     </div>
   );
@@ -615,6 +594,29 @@ export default function ReviewCampaignPage() {
               </div>
             </div>
           </section>
+
+          <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || !hasEnoughBalance}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b3939] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#062828] disabled:cursor-not-allowed disabled:opacity-50 sm:gap-3 sm:rounded-2xl sm:py-4 sm:text-base"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              Processing...
+            </>
+          ) : (
+            <>
+              <Send size={18} className="shrink-0 sm:h-5 sm:w-5" />
+              <span className="text-center leading-tight">
+                {hasEnoughBalance
+                  ? "Submit & Pay from Wallet"
+                  : "Insufficient Balance"}
+              </span>
+            </>
+          )}
+        </button>
         </div>
 
         {/* Desktop sidebar */}
