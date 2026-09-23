@@ -16,8 +16,6 @@ import {
   Check,
   ClipboardList,
   ImageIcon,
-  Info,
-  Link2,
   Loader2,
   Trash2,
   Upload,
@@ -130,8 +128,14 @@ export default function CampaignDetailsPage() {
     [subtotal, platformFee]
   );
 
+  // Only treat funds as insufficient when a full valid budget is entered
+  const budgetIsReady =
+    rewardPerWorker >= MINIMUM_REWARD && totalWorkers >= MINIMUM_WORKERS;
+
   const hasInsufficientFunds =
-    walletBalance !== null && totalBudget > 0 && walletBalance < totalBudget;
+    walletBalance !== null &&
+    budgetIsReady &&
+    Number(walletBalance) < totalBudget;
 
   const formatNaira = (amount: number) =>
     new Intl.NumberFormat("en-NG", {
@@ -171,16 +175,51 @@ export default function CampaignDetailsPage() {
 
     setSelection(parsed);
 
-    // Fetch wallet balance
-    (async () => {
-      const { data } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", parsed!.advertiserId)
-        .maybeSingle();
+    // Fetch wallet balance for the signed-in user
+ // Fetch wallet balance for the signed-in user
+(async () => {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-      setWalletBalance(data?.balance ?? 0);
-    })();
+  if (authError || !user) {
+    console.error("Auth error while loading wallet:", authError);
+    setWalletBalance(0);
+    return;
+  }
+
+  // Keep selection.advertiserId in sync with the real user
+  if (parsed!.advertiserId !== user.id) {
+    const synced: CampaignSelection = {
+      ...parsed!,
+      advertiserId: user.id,
+    };
+    writeJson(STORAGE_SELECTION, synced);
+    setSelection(synced);
+    parsed = synced;
+  }
+
+  const { data, error } = await supabase
+    .from("wallets")
+    .select("available_balance")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Wallet fetch error:", error);
+    setWalletBalance(0);
+    return;
+  }
+
+  if (!data) {
+    console.warn("No wallet row for user:", user.id);
+    setWalletBalance(0);
+    return;
+  }
+
+  setWalletBalance(Number(data.available_balance ?? 0));
+})();
 
     const draft = readJson<CampaignDraft>(STORAGE_DRAFT);
 
@@ -289,42 +328,42 @@ export default function CampaignDetailsPage() {
      IMAGE UPLOAD HELPERS
   ========================================= */
 
-const uploadImage = async (
-  file: File,
-  folder: "covers" | "targets"
-): Promise<string | null> => {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const uploadImage = async (
+    file: File,
+    folder: "covers" | "targets"
+  ): Promise<string | null> => {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    setFormError("You must be signed in to upload images.");
-    return null;
-  }
+    if (authError || !user) {
+      setFormError("You must be signed in to upload images.");
+      return null;
+    }
 
-  const ext = file.name.split(".").pop() || "jpg";
-  const path = `${folder}/${user.id}/${Date.now()}.${ext}`;
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${folder}/${user.id}/${Date.now()}.${ext}`;
 
-  const { error } = await supabase.storage
-    .from("campaign-assets")
-    .upload(path, file, {
-      upsert: true,
-      contentType: file.type,
-    });
+    const { error } = await supabase.storage
+      .from("campaign-assets")
+      .upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
 
-  if (error) {
-    console.error("Upload error:", error);
-    setFormError(error.message || "Failed to upload image.");
-    return null;
-  }
+    if (error) {
+      console.error("Upload error:", error);
+      setFormError(error.message || "Failed to upload image.");
+      return null;
+    }
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("campaign-assets").getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("campaign-assets").getPublicUrl(path);
 
-  return publicUrl;
-};
+    return publicUrl;
+  };
 
   const handleCoverUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -497,7 +536,7 @@ const uploadImage = async (
   /* Budget card – reused for mobile top + desktop sidebar */
   const BudgetCard = (
     <div className="overflow-hidden rounded-3xl border border-[#0B3939]/15 bg-white shadow-sm">
-      <div className="bg-[#0B3939] px-6 md-py-6 py-2 text-white">
+      <div className="bg-[#0B3939] px-6 md:py-6 py-2 text-white">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10">
             <Wallet size={18} />
@@ -556,14 +595,6 @@ const uploadImage = async (
         </div>
 
         <div className="border-t border-slate-100 pt-1">
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            {/* <span>Subtotal</span> */}
-            {/* <span>{formatNaira(subtotal)}</span> */}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-sm text-slate-500">
-            {/* <span>Platform fee (5%)</span> */}
-            {/* <span>{formatNaira(platformFee)}</span> */}
-          </div>
           <div className="mt-2 rounded-2xl bg-[#0B3939]/5 p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Total Budget
@@ -598,14 +629,6 @@ const uploadImage = async (
             )}
           </div>
         )}
-
-        {/* <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-          <Info size={18} className="mt-0.5 shrink-0 text-blue-600" />
-          <p className="text-xs leading-5 text-blue-800">
-            A 5% platform fee is added automatically. Draft is saved in this
-            browser until you delete it or submit the campaign.
-          </p>
-        </div> */}
 
         {formError && (
           <div className="flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
@@ -785,7 +808,7 @@ const uploadImage = async (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0B3939]/10 text-[#0B3939]">
-                <Link2 size={22} />
+                <ImageIcon size={22} />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
