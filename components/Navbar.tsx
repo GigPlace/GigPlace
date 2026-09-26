@@ -82,7 +82,7 @@ export default function Navbar() {
 
           {/* Mobile Hamburger */}
           <div className="flex items-center justify-center text-[#0b3939] text-sm gap-2">
-            <Link href="/login">Login</Link>
+            <Link href="/login" className="md:hidden">Login</Link>
             <button
             onClick={toggleMobileMenu}
             className="md:hidden w-11 h-11 flex items-center justify-center text-[#0b3939] hover:text-gray-900 transition-colors"
