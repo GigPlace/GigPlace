@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeft,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -14,12 +13,9 @@ import {
   Loader2,
   Megaphone,
   MoreVertical,
-  Pause,
-  Play,
   Plus,
   RefreshCw,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -54,6 +50,7 @@ type CampaignTask = {
   status: string | null;
   created_at: string;
   updated_at: string | null;
+  rejection_reason?: string | null;
   submission_count?: number;
   pending_count?: number;
   approved_count?: number;
@@ -139,6 +136,12 @@ export default function AdminCampaignTasksPage() {
   const [viewTask, setViewTask] = useState<CampaignTask | null>(null);
   const [deleteTask, setDeleteTask] = useState<CampaignTask | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Reject flow
+  const [rejectTask, setRejectTask] = useState<CampaignTask | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [rejectError, setRejectError] = useState("");
 
   const canManageTasks = useMemo(() => {
     if (!campaign) return false;
@@ -238,7 +241,7 @@ export default function AdminCampaignTasksPage() {
           `
           id, campaign_id, title, instructions, task_type, target_url,
           proof_required, reward_amount, max_workers, completed_workers,
-          status, created_at, updated_at
+          status, created_at, updated_at, rejection_reason
         `,
           { count: "exact" }
         )
@@ -432,7 +435,7 @@ export default function AdminCampaignTasksPage() {
     return "";
   };
 
-    const handleSaveTask = async () => {
+  const handleSaveTask = async () => {
     if (!campaignId) return;
 
     const validationError = validateForm();
@@ -581,52 +584,59 @@ export default function AdminCampaignTasksPage() {
     }
   };
 
-  const updateTaskStatus = async (task: CampaignTask, status: string) => {
-    if (!campaignId) return;
+  const openRejectModal = (task: CampaignTask) => {
+    setRejectTask(task);
+    setRejectionReason("");
+    setRejectError("");
     setActionMenuOpen(null);
-
-    try {
-      const { error } = await supabase
-        .from("campaign_tasks")
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", task.id);
-
-      if (error) throw error;
-
-      showToast("success", `Task ${status} successfully.`);
-      await Promise.all([
-        fetchStats(campaignId),
-        fetchTasks(campaignId, page),
-      ]);
-    } catch (err: any) {
-      console.error(err);
-      showToast("error", err.message || "Failed to update task");
-    }
   };
 
-  const handleDeleteTask = async () => {
-    if (!deleteTask || !campaignId) return;
-    setDeleteLoading(true);
+  const handleRejectTask = async () => {
+    if (!rejectTask || !campaignId) return;
+
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setRejectError("Please provide a reason for rejection.");
+      return;
+    }
+
+    setRejectLoading(true);
+    setRejectError("");
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("campaign_tasks")
-        .delete()
-        .eq("id", deleteTask.id);
+        .update({
+          status: "rejected",
+          rejection_reason: reason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rejectTask.id)
+        .select("id, status")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        throw new Error(
+          "Rejection blocked (0 rows). Check admin_profiles + RLS."
+        );
+      }
 
-      showToast("success", "Task deleted successfully.");
-      setDeleteTask(null);
+      showToast("success", "Task rejected successfully.");
+      setRejectTask(null);
+      setRejectionReason("");
       await Promise.all([
         fetchStats(campaignId),
         fetchTasks(campaignId, page),
       ]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast("error", err.message || "Failed to delete task");
+      const message =
+        err instanceof Error ? err.message : "Failed to reject task";
+      setRejectError(message);
+      showToast("error", message);
     } finally {
-      setDeleteLoading(false);
+      setRejectLoading(false);
     }
   };
 
@@ -840,6 +850,7 @@ export default function AdminCampaignTasksPage() {
               <option value="completed">Completed</option>
               <option value="paused">Paused</option>
               <option value="cancelled">Cancelled</option>
+              <option value="rejected">Rejected</option>
             </select>
 
             <select
@@ -994,12 +1005,13 @@ export default function AdminCampaignTasksPage() {
                                     setActionMenuOpen(null);
                                   }}
                                 />
-                                {task.status !== "completed" && (
-                                  <MenuItem
-                                    label="Edit Task"
-                                    onClick={() => openEditModal(task)}
-                                  />
-                                )}
+                                {task.status !== "completed" &&
+                                  task.status !== "rejected" && (
+                                    <MenuItem
+                                      label="Edit Task"
+                                      onClick={() => openEditModal(task)}
+                                    />
+                                  )}
                                 <Link
                                   href={`/admin/dashboard/campaigns/${campaign.id}/tasks/${task.id}/submissions`}
                                   className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
@@ -1024,6 +1036,14 @@ export default function AdminCampaignTasksPage() {
                                     }
                                   />
                                 )}
+                                {task.status !== "completed" &&
+                                  task.status !== "rejected" && (
+                                    <MenuItem
+                                      label="Reject"
+                                      danger
+                                      onClick={() => openRejectModal(task)}
+                                    />
+                                  )}
                                 {task.status !== "completed" && (
                                   <MenuItem
                                     label="Delete"
@@ -1297,6 +1317,15 @@ export default function AdminCampaignTasksPage() {
               <Info label="Created" value={formatDate(viewTask.created_at)} />
               <Info label="Updated" value={formatDate(viewTask.updated_at)} />
 
+              {viewTask.rejection_reason && (
+                <div>
+                  <p className="mb-1 text-slate-500">Rejection Reason</p>
+                  <p className="rounded-2xl bg-red-50 p-4 text-red-700">
+                    {viewTask.rejection_reason}
+                  </p>
+                </div>
+              )}
+
               {viewTask.target_url && (
                 <div>
                   <p className="mb-1 text-slate-500">Target URL</p>
@@ -1363,6 +1392,81 @@ export default function AdminCampaignTasksPage() {
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 ) : (
                   "Delete Task"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal – requires reason */}
+      {rejectTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900">
+                Reject Task
+              </h3>
+              <button
+                onClick={() => {
+                  setRejectTask(null);
+                  setRejectionReason("");
+                  setRejectError("");
+                }}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-slate-600">
+              You are about to reject{" "}
+              <span className="font-semibold text-slate-900">
+                “{rejectTask.title || "Untitled Task"}”
+              </span>
+              . Please provide a clear reason.
+            </p>
+
+            <Field label="Rejection Reason *">
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  if (rejectError) setRejectError("");
+                }}
+                rows={4}
+                placeholder="e.g. Task instructions are unclear / violates platform policy / duplicate task..."
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0b3939]"
+              />
+            </Field>
+
+            {rejectError && (
+              <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {rejectError}
+              </p>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  setRejectTask(null);
+                  setRejectionReason("");
+                  setRejectError("");
+                }}
+                disabled={rejectLoading}
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectTask}
+                disabled={rejectLoading}
+                className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {rejectLoading ? (
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                ) : (
+                  "Reject Task"
                 )}
               </button>
             </div>

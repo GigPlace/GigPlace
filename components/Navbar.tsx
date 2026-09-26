@@ -40,7 +40,7 @@ export default function Navbar() {
         <div className="h-20 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-20 h-15  rounded-2xl flex items-center justify-center text-white font-bold  transition-transform group-hover:scale-110">
+            <div className="w-12 h-12  rounded-2xl flex items-center justify-center text-white font-bold  transition-transform group-hover:scale-110">
               <Image src='/gig.png' alt='gigplace_logo' width={150} height={150}/>
             </div>
             {/* <div>
@@ -81,13 +81,16 @@ export default function Navbar() {
           </div>
 
           {/* Mobile Hamburger */}
-          <button
+          <div className="flex items-center justify-center text-[#0b3939] text-sm gap-2">
+            <Link href="/login">Login</Link>
+            <button
             onClick={toggleMobileMenu}
-            className="md:hidden w-11 h-11 flex items-center justify-center text-gray-700 hover:text-gray-900 transition-colors"
+            className="md:hidden w-11 h-11 flex items-center justify-center text-[#0b3939] hover:text-gray-900 transition-colors"
             aria-label="Toggle mobile menu"
           >
             <Menu size={24} />
           </button>
+          </div>
         </div>
       </div>
 
@@ -109,7 +112,7 @@ export default function Navbar() {
           {/* Mobile Header */}
           <div className="flex items-center justify-between mb-1">
             <Link href="/" className="flex items-center gap-3" onClick={toggleMobileMenu}>
-              <div className="w-20 h-20  rounded-2xl flex items-center justify-center font-bold  transition-transform group-hover:scale-110">
+              <div className="w-8 h-8  rounded-2xl flex items-center justify-center font-bold  transition-transform group-hover:scale-110">
               <Image src='/gig.png' alt='gigplace_logo' width={150} height={150} />
             </div>
               {/* <span className="text-2xl font-semibold tracking-tight">GigPlace</span> */}
@@ -143,14 +146,14 @@ export default function Navbar() {
             <Link
               href="/login"
               onClick={toggleMobileMenu}
-              className="block w-full py-2 text-center text-[#0b3939] font-semibold text-lg border border-gray-400 rounded-2xl hover:bg-[#0b3939] hover:text-[#ffffff] transition-colors"
+              className="block w-full py-2 text-sm text-center text-[#0b3939] font-semibold text-lg border border-gray-400 rounded-2xl hover:bg-[#0b3939] hover:text-[#ffffff] transition-colors"
             >
               Log in
             </Link>
             <Link
               href="/signup"
               onClick={toggleMobileMenu}
-              className="block w-full py-2 text-center bg-[#0b3939] hover:bg-[#ffffff] text-white hover:text-[#0b3939] font-semibold text-lg rounded-2xl transition-all active:scale-[0.985] border-1 border-gray-400 transition-all ease-in-out duration-300"
+              className="block w-full py-2 text-center text-sm bg-[#0b3939] hover:bg-[#ffffff] text-white hover:text-[#0b3939] font-semibold text-lg rounded-2xl transition-all active:scale-[0.985] border-1 border-gray-400 transition-all ease-in-out duration-300"
             >
               Get Started
             </Link>
