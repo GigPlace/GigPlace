@@ -432,7 +432,7 @@ export default function AdminCampaignTasksPage() {
     return "";
   };
 
-  const handleSaveTask = async () => {
+    const handleSaveTask = async () => {
     if (!campaignId) return;
 
     const validationError = validateForm();
@@ -459,20 +459,36 @@ export default function AdminCampaignTasksPage() {
       };
 
       if (editingTask) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("campaign_tasks")
           .update(payload)
-          .eq("id", editingTask.id);
+          .eq("id", editingTask.id)
+          .select("id, status")
+          .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+          throw new Error(
+            "Update blocked (0 rows). Check admin_profiles + RLS policies."
+          );
+        }
         showToast("success", "Task updated successfully.");
       } else {
-        const { error } = await supabase.from("campaign_tasks").insert({
-          ...payload,
-          completed_workers: 0,
-        });
+        const { data, error } = await supabase
+          .from("campaign_tasks")
+          .insert({
+            ...payload,
+            completed_workers: 0,
+          })
+          .select("id, status")
+          .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+          throw new Error(
+            "Insert blocked (0 rows). Check admin_profiles + RLS policies."
+          );
+        }
         showToast("success", "Task created successfully.");
       }
 
@@ -482,11 +498,86 @@ export default function AdminCampaignTasksPage() {
         fetchStats(campaignId),
         fetchTasks(campaignId, page),
       ]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setFormError(err.message || "Failed to save task");
+      const message =
+        err instanceof Error ? err.message : "Failed to save task";
+      setFormError(message);
+      showToast("error", message);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const updateTaskStatus = async (task: CampaignTask, status: string) => {
+    if (!campaignId) return;
+    setActionMenuOpen(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("campaign_tasks")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", task.id)
+        .select("id, status")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        throw new Error(
+          "Status update blocked (0 rows). Check admin_profiles + RLS."
+        );
+      }
+      if (data.status !== status) {
+        throw new Error(
+          `Expected status "${status}" but DB returned "${data.status}".`
+        );
+      }
+
+      showToast("success", `Task ${status} successfully.`);
+      await Promise.all([
+        fetchStats(campaignId),
+        fetchTasks(campaignId, page),
+      ]);
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error ? err.message : "Failed to update task";
+      showToast("error", message);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deleteTask || !campaignId) return;
+    setDeleteLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("campaign_tasks")
+        .delete()
+        .eq("id", deleteTask.id)
+        .select("id")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        throw new Error(
+          "Delete blocked (0 rows). Check admin_profiles + RLS."
+        );
+      }
+
+      showToast("success", "Task deleted successfully.");
+      setDeleteTask(null);
+      await Promise.all([
+        fetchStats(campaignId),
+        fetchTasks(campaignId, page),
+      ]);
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error ? err.message : "Failed to delete task";
+      showToast("error", message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
