@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -73,7 +72,7 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.35, ease: "easeOut" },
+    transition: { duration: 0.35, ease: "easeOut" as const },
   },
 };
 
@@ -87,7 +86,7 @@ function EcosystemVisual({ reduceMotion }: { reduceMotion: boolean }) {
       className="relative mx-auto w-full max-w-sm rounded-2xl border border-[#0b3939]/10 bg-white/50 p-5 shadow-sm backdrop-blur-sm sm:p-6"
       aria-hidden
     >
-      Workers
+      {/* Workers */}
       <div className="mb-4 flex justify-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#0b3939]/10 bg-[#0b3939]/5 px-3 py-1.5 text-xs font-semibold text-[#0b3939]">
           <Users className="h-3.5 w-3.5" />
