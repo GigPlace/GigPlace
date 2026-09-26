@@ -1,4 +1,3 @@
-// components/home/HowItWorks.tsx
 "use client";
 
 import Link from "next/link";
@@ -98,7 +97,7 @@ const stepVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: "easeOut" },
+    transition: { duration: 0.4, ease: "easeOut" as const },
   },
 };
 
@@ -155,7 +154,7 @@ function PathCard({
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.45, ease: "easeOut" }}
+      transition={{ duration: 0.45, ease: "easeOut" as const }}
       className="group rounded-2xl border border-white/12 bg-white/[0.08] p-5 shadow-lg backdrop-blur-md transition-shadow duration-300 hover:shadow-xl sm:p-6 md:p-7"
     >
       <div className="mb-6">
