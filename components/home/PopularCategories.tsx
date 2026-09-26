@@ -1,4 +1,3 @@
-// components/home/PopularCategories.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -75,7 +74,7 @@ const containerVariants = {
   },
 };
 
-const stepVariants = {
+const cardVariants = {
   hidden: { opacity: 0, y: 16 },
   visible: {
     opacity: 1,
@@ -117,7 +116,6 @@ export default function PopularCategories() {
 
       // Optional real counts — only if campaigns expose category_id
       let countsByCategory: Record<string, number> = {};
-
       try {
         const { data: campaignsData, error: campaignsError } = await supabase
           .from("campaigns")
