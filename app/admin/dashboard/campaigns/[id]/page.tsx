@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Users,
   Wallet,
-  XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -171,10 +170,7 @@ export default function AdminCampaignDetailsPage() {
     setError("");
 
     try {
-      await Promise.all([
-        fetchCampaign(),
-        fetchTasksAndSubmissions(),
-      ]);
+      await Promise.all([fetchCampaign(), fetchTasksAndSubmissions()]);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Unable to load campaign");
@@ -219,7 +215,6 @@ export default function AdminCampaignDetailsPage() {
   };
 
   const fetchTasksAndSubmissions = async () => {
-    // Tasks
     const { data: tasksData, error: tasksError } = await supabase
       .from("campaign_tasks")
       .select(
@@ -255,10 +250,13 @@ export default function AdminCampaignDetailsPage() {
 
       if (subError) throw subError;
 
-      const taskTitleMap = taskList.reduce((acc, t) => {
-        acc[t.id] = t.title;
-        return acc;
-      }, {} as Record<string, string | null>);
+      const taskTitleMap = taskList.reduce(
+        (acc, t) => {
+          acc[t.id] = t.title;
+          return acc;
+        },
+        {} as Record<string, string | null>
+      );
 
       submissionList = (submissionsData || []).map((s) => ({
         ...s,
@@ -268,7 +266,6 @@ export default function AdminCampaignDetailsPage() {
 
     setSubmissions(submissionList);
 
-    // Analytics
     const totalTasks = taskList.length;
     const activeTasks = taskList.filter((t) => t.status === "active").length;
     const completedTasks = taskList.filter(
@@ -358,6 +355,7 @@ export default function AdminCampaignDetailsPage() {
 
   /* =========================
      Admin Actions
+     Approve uses RPC → creates campaign_tasks so workers can see the task
   ========================= */
   const updateStatus = async (
     newStatus: "active" | "rejected" | "cancelled"
@@ -366,28 +364,56 @@ export default function AdminCampaignDetailsPage() {
     setActionLoading(true);
 
     try {
-      const { error: updateError } = await supabase
-        .from("campaigns")
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", campaign.id);
+      if (newStatus === "active") {
+        // Creates campaign row status=active + campaign_tasks (if missing)
+        const { error: rpcError } = await supabase.rpc(
+          "admin_approve_campaign",
+          { p_campaign_id: campaign.id }
+        );
+        if (rpcError) throw rpcError;
+      } else if (newStatus === "rejected") {
+        const { error: rpcError } = await supabase.rpc(
+          "admin_reject_campaign",
+          { p_campaign_id: campaign.id }
+        );
+        if (rpcError) throw rpcError;
+      } else {
+        // cancel — direct update (or switch to admin_suspend_campaign if you prefer)
+        const { error: updateError } = await supabase
+          .from("campaigns")
+          .update({
+            status: "cancelled",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", campaign.id);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
 
-      setCampaign({ ...campaign, status: newStatus });
+        // Also deactivate tasks so they stop showing on Find Tasks
+        await supabase
+          .from("campaign_tasks")
+          .update({
+            status: "cancelled",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("campaign_id", campaign.id)
+          .eq("status", "active");
+      }
+
       setConfirmAction(null);
 
       const messages = {
-        active: "Campaign approved successfully.",
+        active: "Campaign approved successfully. Task is now visible to workers.",
         rejected: "Campaign rejected successfully.",
         cancelled: "Campaign cancelled successfully.",
       };
       showToast("success", messages[newStatus]);
+
+      // Reload campaign + tasks so UI shows the new task
+      await loadAll(true);
     } catch (err: any) {
       console.error(err);
-      showToast("error", err.message || "Action failed");
+      showToast("error", err?.message || "Action failed");
     } finally {
       setActionLoading(false);
     }
@@ -543,7 +569,7 @@ export default function AdminCampaignDetailsPage() {
               icon={<Wallet size={18} />}
             />
             <MiniStat
-              label="Total Slots"
+              label="Total slots"
               value={String(campaign.total_slots ?? 0)}
               icon={<Users size={18} />}
             />
@@ -704,25 +730,27 @@ export default function AdminCampaignDetailsPage() {
 
         {/* Tasks */}
         <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-  <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div className="flex items-center gap-3">
-      <ClipboardList className="text-[#0b3939]" size={22} />
-      <h3 className="text-lg font-bold text-slate-900">
-        Campaign Tasks
-      </h3>
-    </div>
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="text-[#0b3939]" size={22} />
+              <h3 className="text-lg font-bold text-slate-900">
+                Campaign Tasks
+              </h3>
+            </div>
 
-    <Link
-      href={`/admin/dashboard/campaigns/${campaign.id}/task`}
-      className="inline-flex items-center gap-2 rounded-xl bg-[#0b3939] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b3939]/90"
-    >
-      <ClipboardList size={16} />
-      Manage Tasks
-    </Link>
-  </div>
+            <Link
+              href={`/admin/dashboard/campaigns/${campaign.id}/task`}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0b3939] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b3939]/90"
+            >
+              <ClipboardList size={16} />
+              Manage Tasks
+            </Link>
+          </div>
           {tasks.length === 0 ? (
             <p className="text-sm text-slate-500">
               No tasks found for this campaign.
+              {campaign.status === "pending" &&
+                " Approve the campaign to auto-create a task for workers."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -906,7 +934,7 @@ export default function AdminCampaignDetailsPage() {
             </h3>
             <p className="mt-3 text-sm text-slate-600">
               {confirmAction === "approve" &&
-                "This campaign will become active and visible to workers."}
+                "This campaign will become active. A task will be created (if missing) and shown to workers on Find Tasks."}
               {confirmAction === "reject" &&
                 "This campaign will be marked as rejected."}
               {confirmAction === "cancel" &&
@@ -927,8 +955,8 @@ export default function AdminCampaignDetailsPage() {
                     confirmAction === "approve"
                       ? "active"
                       : confirmAction === "reject"
-                      ? "rejected"
-                      : "cancelled"
+                        ? "rejected"
+                        : "cancelled"
                   )
                 }
                 disabled={actionLoading}
