@@ -6,6 +6,8 @@ import HowItWorks from '@/components/home/HowItWorks'
 import PopularCategories from '@/components/home/PopularCategories'
 import FeaturedGigs from '@/components/home/FeaturedGigs'
 import WhyGigPlace from '@/components/home/WhyGigPlace'
+import FinalCTA from '@/components/home/FinalCTA'
+import Footer from '@/components/Footer'
 import React from 'react'
 
 const page = () => {
@@ -18,7 +20,9 @@ const page = () => {
         <PopularCategories/>
         <FeaturedGigs/>
         <WhyGigPlace/>
+        <FinalCTA/>
         {/* <PlatformStats/> */}
+        <Footer/>
     </div>
   )
 }
