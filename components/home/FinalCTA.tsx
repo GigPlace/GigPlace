@@ -114,7 +114,7 @@ export default function FinalCTA() {
         {/* CTA Buttons */}
         <div className="cta-reveal cta-reveal-delay-3 mt-6 flex flex-col items-center justify-center gap-3 sm:mt-8 sm:flex-row sm:gap-4">
           <Link
-            href="/explore"
+            href="/login"
             className="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-teal-400 px-6 py-3 text-sm font-semibold text-[#0b3939] shadow-lg shadow-teal-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-300 hover:shadow-xl hover:shadow-teal-400/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 active:translate-y-0 sm:w-auto sm:min-w-[160px] sm:px-7 sm:py-3.5 sm:text-base"
           >
             <span className="relative z-10">Find Gigs</span>
@@ -132,7 +132,7 @@ export default function FinalCTA() {
           </Link>
 
           <Link
-            href="/campaigns/new"
+            href="/login"
             className="group inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-teal-400/40 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-teal-300/70 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 active:translate-y-0 sm:w-auto sm:min-w-[160px] sm:px-7 sm:py-3.5 sm:text-base"
           >
             <svg
