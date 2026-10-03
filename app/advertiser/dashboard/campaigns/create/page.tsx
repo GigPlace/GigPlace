@@ -25,6 +25,20 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Compass,
+  Hash,
+  Sparkles,
+  Share2,
+  Mic2,
+  Video,
+  Mail,
+  MapPin,
+  Heart,
+  BarChart3,
+  ShoppingBag,
+  Rocket,
+  FileText,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -66,13 +80,14 @@ type CampaignSelection = {
 };
 
 /* =========================================
-   CATEGORY ICONS
+   CATEGORY ICONS  (expanded)
 ========================================= */
 
 const categoryIcons: Record<
   string,
   ComponentType<{ size?: number; className?: string }>
 > = {
+  // Existing
   "sign-up": UserPlus,
   "whatsapp-telegram": Send,
   "instagram-tiktok": Camera,
@@ -81,6 +96,22 @@ const categoryIcons: Record<
   discord: MessageCircle,
   facebook: Users,
   "search-review": Search,
+
+  // NEW – recommended
+  "social-media-discovery": Compass,        // Social Media Discovery
+  "hashtag-trend": Hash,                    // Hashtag / Trend Campaigns
+  "influencer-ambassador": Sparkles,        // Influencer & Brand Ambassadors
+  "content-sharing": Share2,                // Content Sharing / Viral
+  "podcast-audio": Mic2,                    // Podcast / Audio Campaigns
+  "live-streaming": Video,                 // Live Streaming (Twitch, Kick, YouTube Live)
+  "linkedin-professional": BriefcaseBusiness,    // LinkedIn / Professional
+  "email-newsletter": Mail,                 // Email / Newsletter Growth
+  "local-geo": MapPin,                      // Local / Geo-targeted
+  "community-engagement": Heart,            // Community & Engagement
+  "analytics-performance": BarChart3,       // Analytics / Performance Campaigns
+  "ecommerce-product": ShoppingBag,         // E-commerce / Product Seeding
+  "growth-launch": Rocket,                  // Growth / Product Launch
+  "ugc-content-creation": FileText,         // UGC / Content Creation
 };
 
 /* =========================================
@@ -170,27 +201,22 @@ export default function CreateCampaignPage() {
     const isCurrentlyOpen = expandedCategoryId === category.id;
 
     if (isCurrentlyOpen) {
-      // Collapse if already open
       setExpandedCategoryId(null);
       return;
     }
 
-    // Open this category and show its subcategories
     setExpandedCategoryId(category.id);
     setSelectedCategory(category);
     setError(null);
 
     const categorySubs = getSubcategories(category.id);
 
-    // Auto-select if there is only one subcategory
     if (categorySubs.length === 1) {
       setSelectedSubcategory(categorySubs[0]);
     } else {
-      // Clear previous subcategory when switching categories
       setSelectedSubcategory(null);
     }
 
-    // Smooth scroll to the expanded section after a short delay
     setTimeout(() => {
       const el = document.getElementById(`category-${category.id}`);
       if (el) {
@@ -199,38 +225,38 @@ export default function CreateCampaignPage() {
     }, 100);
   };
 
- const handleSelectSubcategory = (
-  category: CampaignCategory,
-  subcategory: CampaignSubcategory
-) => {
-  if (!advertiserId) {
-    setError("You must be signed in to create a campaign.");
-    router.replace("/login");
-    return;
-  }
+  const handleSelectSubcategory = (
+    category: CampaignCategory,
+    subcategory: CampaignSubcategory
+  ) => {
+    if (!advertiserId) {
+      setError("You must be signed in to create a campaign.");
+      router.replace("/login");
+      return;
+    }
 
-  setSelectedCategory(category);
-  setSelectedSubcategory(subcategory);
-  setExpandedCategoryId(category.id);
-  setError(null);
+    setSelectedCategory(category);
+    setSelectedSubcategory(subcategory);
+    setExpandedCategoryId(category.id);
+    setError(null);
 
-  const selection: CampaignSelection = {
-    advertiserId,
-    category: {
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-    },
-    subcategory: {
-      id: subcategory.id,
-      name: subcategory.name,
-      slug: subcategory.slug,
-    },
+    const selection: CampaignSelection = {
+      advertiserId,
+      category: {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+      },
+      subcategory: {
+        id: subcategory.id,
+        name: subcategory.name,
+        slug: subcategory.slug,
+      },
+    };
+
+    sessionStorage.setItem("campaignSelection", JSON.stringify(selection));
+    router.push("/advertiser/dashboard/campaigns/create/details");
   };
-
-  sessionStorage.setItem("campaignSelection", JSON.stringify(selection));
-  router.push("/advertiser/dashboard/campaigns/create/details");
-};
 
   const handleContinue = () => {
     if (!selectedCategory || !selectedSubcategory) {
@@ -276,6 +302,7 @@ export default function CreateCampaignPage() {
             <h2 className="font-semibold text-gray-900">Loading categories</h2>
             <p className="mt-1 text-sm text-gray-500">
               Please wait while campaign categories are loaded.
+             
             </p>
           </div>
         </div>
@@ -360,7 +387,9 @@ export default function CreateCampaignPage() {
             className="mt-0.5 shrink-0 text-amber-600"
           />
           <div>
-            <h2 className="font-semibold text-sm md:text-lg text-amber-900">Choose carefully</h2>
+            <h2 className="font-semibold text-sm md:text-lg text-amber-900">
+              Choose carefully
+            </h2>
             <p className="mt-1 md:text-sm text-xs text-amber-800">
               Select the category and subcategory that best match your campaign.
             </p>
@@ -396,7 +425,6 @@ export default function CreateCampaignPage() {
                       : "border-gray-200 hover:border-[#0b3939]/25"
                   }`}
                 >
-                  {/* Whole header is clickable */}
                   <button
                     type="button"
                     onClick={() => handleSelectCategory(category)}
@@ -445,7 +473,6 @@ export default function CreateCampaignPage() {
                     </div>
                   </button>
 
-                  {/* Subcategories appear automatically when category is selected */}
                   {isExpanded && (
                     <div className="border-t border-gray-100 bg-[#f7faf9] p-6">
                       <div className="mb-5">
