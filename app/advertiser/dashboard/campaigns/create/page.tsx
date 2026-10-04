@@ -33,12 +33,14 @@ import {
   Video,
   Mail,
   MapPin,
+  Briefcase,
   Heart,
   BarChart3,
   ShoppingBag,
   Rocket,
   FileText,
   BriefcaseBusiness,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -87,33 +89,14 @@ const categoryIcons: Record<
   string,
   ComponentType<{ size?: number; className?: string }>
 > = {
-  // Existing
+  "social-media-discovery": Compass,   // from lucide-react
   "sign-up": UserPlus,
-  "whatsapp-telegram": Send,
-  "instagram-tiktok": Camera,
-  youtube: Play,
   "seo-website": Globe,
-  discord: MessageCircle,
-  facebook: Users,
   "search-review": Search,
-
-  // NEW – recommended
-  "social-media-discovery": Compass,        // Social Media Discovery
-  "hashtag-trend": Hash,                    // Hashtag / Trend Campaigns
-  "influencer-ambassador": Sparkles,        // Influencer & Brand Ambassadors
-  "content-sharing": Share2,                // Content Sharing / Viral
-  "podcast-audio": Mic2,                    // Podcast / Audio Campaigns
-  "live-streaming": Video,                 // Live Streaming (Twitch, Kick, YouTube Live)
-  "linkedin-professional": BriefcaseBusiness,    // LinkedIn / Professional
-  "email-newsletter": Mail,                 // Email / Newsletter Growth
-  "local-geo": MapPin,                      // Local / Geo-targeted
-  "community-engagement": Heart,            // Community & Engagement
-  "analytics-performance": BarChart3,       // Analytics / Performance Campaigns
-  "ecommerce-product": ShoppingBag,         // E-commerce / Product Seeding
-  "growth-launch": Rocket,                  // Growth / Product Launch
-  "ugc-content-creation": FileText,         // UGC / Content Creation
+  "surveys-research": ClipboardList,   // or FileText
+  "community-participation": Users,
+  "hire-freelancers": Briefcase,
 };
-
 /* =========================================
    PAGE
 ========================================= */

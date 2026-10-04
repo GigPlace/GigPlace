@@ -422,7 +422,7 @@ export default function FeaturedGigs() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
             {gigs.map((gig, index) => (
               <GigCard
                 key={gig.id}
