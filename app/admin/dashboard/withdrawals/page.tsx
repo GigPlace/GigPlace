@@ -6,9 +6,11 @@ import {
   Banknote,
   CheckCircle2,
   Clock3,
+  FileImage,
   Loader2,
   RefreshCw,
   Search,
+  Upload,
   X,
   XCircle,
 } from "lucide-react";
@@ -34,6 +36,7 @@ type Withdrawal = {
   status: WithdrawalStatus;
   payment_reference: string | null;
   admin_note: string | null;
+  receipt_url: string | null;
   processed_by: string | null;
   processed_at: string | null;
   created_at: string;
@@ -54,6 +57,7 @@ type Withdrawal = {
 
 const PAGE_SIZE = 10;
 const FEE_RATE = 0.1; // 10% fallback if columns missing
+const RECEIPT_BUCKET = "withdrawal-receipts";
 
 const formatNaira = (amount: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -126,6 +130,13 @@ export default function AdminWithdrawalsPage() {
   const [adminNote, setAdminNote] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
 
+  // Receipt upload (shown after successful mark-as-paid)
+  const [receiptWithdrawal, setReceiptWithdrawal] =
+    useState<Withdrawal | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+
   const loadWithdrawals = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -166,6 +177,7 @@ export default function AdminWithdrawalsPage() {
           fee_amount: fee,
           net_amount: net,
           status: w.status as WithdrawalStatus,
+          receipt_url: w.receipt_url ?? null,
           worker: profilesMap.get(w.user_id),
           processor: w.processed_by
             ? adminsMap.get(w.processed_by)
@@ -201,6 +213,13 @@ export default function AdminWithdrawalsPage() {
       supabase.removeChannel(channel);
     };
   }, [loadWithdrawals]);
+
+  // Cleanup preview URL
+  useEffect(() => {
+    return () => {
+      if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+    };
+  }, [receiptPreview]);
 
   const stats = useMemo(() => {
     const pendingList = withdrawals.filter((w) => w.status === "pending");
@@ -257,6 +276,90 @@ export default function AdminWithdrawalsPage() {
     setActionMode(null);
     setAdminNote("");
     setPaymentReference("");
+  };
+
+  const closeReceiptModal = () => {
+    if (receiptUploading) return;
+    if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+    setReceiptWithdrawal(null);
+    setReceiptFile(null);
+    setReceiptPreview(null);
+  };
+
+  const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+
+    if (!file) {
+      setReceiptFile(null);
+      setReceiptPreview(null);
+      return;
+    }
+
+    // Basic validation
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      setError("Please upload a JPG, PNG, WEBP or PDF file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Receipt must be under 5 MB.");
+      return;
+    }
+
+    setError("");
+    setReceiptFile(file);
+    if (file.type.startsWith("image/")) {
+      setReceiptPreview(URL.createObjectURL(file));
+    } else {
+      setReceiptPreview(null);
+    }
+  };
+
+  const uploadReceipt = async () => {
+    if (!receiptWithdrawal || !receiptFile) return;
+
+    setReceiptUploading(true);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const ext = receiptFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${receiptWithdrawal.user_id}/${receiptWithdrawal.id}_${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(RECEIPT_BUCKET)
+        .upload(path, receiptFile, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: receiptFile.type,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(RECEIPT_BUCKET).getPublicUrl(path);
+
+      const { error: updateError } = await supabase
+        .from("withdrawals")
+        .update({
+          receipt_url: publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", receiptWithdrawal.id);
+
+      if (updateError) throw updateError;
+
+      setSuccessMessage("Receipt uploaded successfully. Worker can now view it.");
+      closeReceiptModal();
+      await loadWithdrawals(true);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to upload receipt. Please try again.");
+    } finally {
+      setReceiptUploading(false);
+    }
   };
 
   const handleAction = async () => {
@@ -328,6 +431,13 @@ export default function AdminWithdrawalsPage() {
         setSuccessMessage(
           `Marked as paid. Transfer ${formatNaira(net)} to the user (fee kept: ${formatNaira(fee)}).`
         );
+
+        // Close approve modal and open receipt upload popup
+        const paidWithdrawal = { ...selectedWithdrawal, status: "paid" as const };
+        closeAction();
+        setReceiptWithdrawal(paidWithdrawal);
+        setReceiptFile(null);
+        setReceiptPreview(null);
       } else {
         // REJECT — refund FULL amount that was deducted from wallet
         const { error: updateError } = await supabase
@@ -381,9 +491,9 @@ export default function AdminWithdrawalsPage() {
         setSuccessMessage(
           `Withdrawal rejected. ${formatNaira(amount)} refunded to user.`
         );
+        closeAction();
       }
 
-      closeAction();
       await loadWithdrawals(true);
     } catch (err: any) {
       console.error(err);
@@ -575,6 +685,9 @@ export default function AdminWithdrawalsPage() {
                       Status
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
+                      Receipt
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
                       Requested
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold uppercase text-slate-500">
@@ -621,6 +734,35 @@ export default function AdminWithdrawalsPage() {
                         >
                           {w.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {w.status === "paid" ? (
+                          w.receipt_url ? (
+                            <a
+                              href={w.receipt_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
+                            >
+                              <FileImage className="h-3.5 w-3.5" />
+                              View
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setReceiptWithdrawal(w);
+                                setReceiptFile(null);
+                                setReceiptPreview(null);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:underline"
+                            >
+                              <Upload className="h-3.5 w-3.5" />
+                              Upload
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
                         {formatDate(w.created_at)}
@@ -682,7 +824,7 @@ export default function AdminWithdrawalsPage() {
         )}
       </div>
 
-      {/* Action Modal */}
+      {/* Action Modal (Approve / Reject) */}
       {selectedWithdrawal && actionMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
@@ -793,6 +935,93 @@ export default function AdminWithdrawalsPage() {
                 {actionMode === "approve"
                   ? `Mark paid · ${formatNaira(selectedWithdrawal.net_amount)}`
                   : `Reject & refund ${formatNaira(selectedWithdrawal.amount)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Upload Modal (appears after Mark paid) */}
+      {receiptWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-6 py-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                Upload Payment Receipt
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {getWorkerName(receiptWithdrawal)} ·{" "}
+                {formatNaira(receiptWithdrawal.net_amount)}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                The worker will be able to view this receipt.
+              </p>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                <input
+                  type="file"
+                  id="receipt-upload"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={handleReceiptFileChange}
+                  className="hidden"
+                  disabled={receiptUploading}
+                />
+                <label
+                  htmlFor="receipt-upload"
+                  className="flex cursor-pointer flex-col items-center gap-2"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+                    <Upload className="h-5 w-5 text-[#0b3939]" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">
+                    {receiptFile
+                      ? receiptFile.name
+                      : "Click to select receipt"}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    JPG, PNG, WEBP or PDF · max 5 MB
+                  </span>
+                </label>
+              </div>
+
+              {receiptPreview && (
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptPreview}
+                    alt="Receipt preview"
+                    className="max-h-48 w-full object-contain bg-slate-50"
+                  />
+                </div>
+              )}
+
+              {receiptFile && !receiptPreview && (
+                <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <FileImage className="h-4 w-4" />
+                  PDF selected — ready to upload
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+              <button
+                onClick={closeReceiptModal}
+                disabled={receiptUploading}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
+              >
+                Skip for now
+              </button>
+              <button
+                onClick={uploadReceipt}
+                disabled={receiptUploading || !receiptFile}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0b3939] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0a2f2f] disabled:opacity-60"
+              >
+                {receiptUploading && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                Upload Receipt
               </button>
             </div>
           </div>
