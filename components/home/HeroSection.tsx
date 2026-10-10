@@ -44,7 +44,7 @@ export default function Hero() {
         lg:min-h-[85vh] lg:py-24"
       style={{
         backgroundImage:
-          "url('https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=2070')",
+          "url('/hero.png')",
       }}
     >
       {/* Overlays */}

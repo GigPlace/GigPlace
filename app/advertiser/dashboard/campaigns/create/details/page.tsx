@@ -560,13 +560,13 @@ export default function CampaignDetailsPage() {
               step="1"
               value={rewardInput}
               onChange={(e) => setRewardInput(e.target.value)}
-              placeholder="50"
+              placeholder="500"
               className={`${inputClass} pl-8 font-semibold sm:pl-9`}
             />
           </div>
-          <p className="mt-1.5 text-xs text-slate-400">
+          {/* <p className="mt-1.5 text-xs text-slate-400">
             Minimum: ₦50 per worker
-          </p>
+          </p> */}
         </div>
 
         <div>
@@ -584,11 +584,11 @@ export default function CampaignDetailsPage() {
               step="1"
               value={workersInput}
               onChange={(e) => setWorkersInput(e.target.value)}
-              placeholder="10"
+              placeholder="100"
               className={`${inputClass} pl-10 font-semibold sm:pl-11`}
             />
           </div>
-          <p className="mt-1.5 text-xs text-slate-400">Minimum: 10 workers</p>
+          {/* <p className="mt-1.5 text-xs text-slate-400">Minimum: 10 workers</p> */}
         </div>
 
         <div className="border-t border-slate-100 pt-3">
