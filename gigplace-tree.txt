@@ -1,0 +1,201 @@
+﻿gig
+|-- .vscode
+|   \-- settings.json
+|-- app
+|   |-- about
+|   |   \-- page.tsx
+|   |-- admin
+|   |   |-- dashboard
+|   |   |   |-- analytics
+|   |   |   |   \-- page.tsx
+|   |   |   |-- campaigns
+|   |   |   |   |-- [id]
+|   |   |   |   |   |-- task
+|   |   |   |   |   |   \-- page.tsx
+|   |   |   |   |   \-- page.tsx
+|   |   |   |   \-- page.tsx
+|   |   |   |-- payments
+|   |   |   |   |-- [id]
+|   |   |   |   |   \-- page.tsx
+|   |   |   |   \-- page.tsx
+|   |   |   |-- submissions
+|   |   |   |   |-- [id]
+|   |   |   |   |   \-- page.tsx
+|   |   |   |   \-- page.tsx
+|   |   |   |-- users
+|   |   |   |   \-- page.tsx
+|   |   |   |-- wallets
+|   |   |   |   \-- page.tsx
+|   |   |   |-- withdrawals
+|   |   |   |   \-- page.tsx
+|   |   |   |-- layout.tsx
+|   |   |   \-- page.tsx
+|   |   |-- forgot-password
+|   |   |   \-- page.tsx
+|   |   |-- login
+|   |   |   \-- page.tsx
+|   |   |-- reset-password
+|   |   |   \-- page.tsx
+|   |   \-- signup
+|   |       \-- page.tsx
+|   |-- advertiser
+|   |   \-- dashboard
+|   |       |-- analytics
+|   |       |   \-- page.tsx
+|   |       |-- campaigns
+|   |       |   |-- [id]
+|   |       |   |   |-- edit
+|   |       |   |   |   \-- page.tsx
+|   |       |   |   \-- view
+|   |       |   |       \-- page.tsx
+|   |       |   |-- create
+|   |       |   |   |-- details
+|   |       |   |   |   \-- page.tsx
+|   |       |   |   |-- review
+|   |       |   |   |   \-- page.tsx
+|   |       |   |   |-- subcategory
+|   |       |   |   |   \-- page.tsx
+|   |       |   |   \-- page.tsx
+|   |       |   |-- success
+|   |       |   |   \-- page.tsx
+|   |       |   |-- view
+|   |       |   |   \-- page.tsx
+|   |       |   \-- page.tsx
+|   |       |-- notifications
+|   |       |   \-- page.tsx
+|   |       |-- submissions
+|   |       |   \-- page.tsx
+|   |       |-- wallet
+|   |       |   |-- success
+|   |       |   |   \-- page.tsx
+|   |       |   \-- page.tsx
+|   |       |-- layout.tsx
+|   |       \-- page.tsx
+|   |-- api
+|   |   |-- fund-wallet
+|   |   |   \-- route.ts
+|   |   |-- paystack
+|   |   |   |-- create-account
+|   |   |   |   \-- route.ts
+|   |   |   |-- verify
+|   |   |   |   \-- route.ts
+|   |   |   |-- verify-wallet
+|   |   |   |   \-- route.ts
+|   |   |   \-- webhook
+|   |   |       \-- route.ts
+|   |   |-- verify-payment
+|   |   |   \-- route.ts
+|   |   \-- verify-wallet-payment
+|   |       \-- route.ts
+|   |-- contexts
+|   |   \-- AdminLayoutContext.tsx
+|   |-- dashboard
+|   |   |-- notifications
+|   |   |   \-- page.tsx
+|   |   |-- submissions
+|   |   |   |-- [id]
+|   |   |   |   \-- page.tsx
+|   |   |   \-- page.tsx
+|   |   |-- tasks
+|   |   |   |-- [id]
+|   |   |   |   \-- page.tsx
+|   |   |   \-- page.tsx
+|   |   |-- wallet
+|   |   |   \-- page.tsx
+|   |   |-- withdraw
+|   |   |   \-- page.tsx
+|   |   |-- layout.tsx
+|   |   \-- page.tsx
+|   |-- explore
+|   |   \-- page.tsx
+|   |-- forgot-password
+|   |   \-- page.tsx
+|   |-- gigs
+|   |   \-- page.tsx
+|   |-- HomePage
+|   |   \-- page.tsx
+|   |-- login
+|   |   \-- page.tsx
+|   |-- reset-password
+|   |   \-- page.tsx
+|   |-- signup
+|   |   \-- page.tsx
+|   |-- favicon.ico
+|   |-- globals.css
+|   |-- layout.tsx
+|   \-- page.tsx
+|-- components
+|   |-- about
+|   |   \-- AboutHero.tsx
+|   |-- admin
+|   |   |-- auth
+|   |   |   |-- PasswordInput.tsx
+|   |   |   \-- PasswordStrength.tsx
+|   |   |-- AdminHeader.tsx
+|   |   |-- AdminLogoutModal.tsx
+|   |   |-- AdminNotificationDropdown.tsx
+|   |   |-- AdminProfileDropdown.tsx
+|   |   |-- AdminSearchModal.tsx
+|   |   \-- AdminSidebar.tsx
+|   |-- advertiser
+|   |   |-- AdvertiserHeader.tsx
+|   |   \-- AdvertiserSidebar.tsx
+|   |-- dashboard
+|   |   |-- DashboardHeader.tsx
+|   |   \-- DashboardSidebar.tsx
+|   |-- explore
+|   |   \-- ExploreGigHero.tsx
+|   |-- home
+|   |   |-- FeaturedGigs.tsx
+|   |   |-- FinalCTA.tsx
+|   |   |-- HeroSection.tsx
+|   |   |-- HowItWorks.tsx
+|   |   |-- PlatformValue.tsx
+|   |   |-- PopularCategories.tsx
+|   |   \-- WhyGigPlace.tsx
+|   |-- Footer.tsx
+|   |-- Navbar.tsx
+|   \-- PlatformStats.tsx
+|-- lib
+|   |-- admin
+|   |   |-- constants.ts
+|   |   |-- nigeria-locations.ts
+|   |   \-- types.ts
+|   |-- supabase
+|   |   \-- client.ts
+|   |-- analytics.ts
+|   |-- ensure-profile.ts
+|   |-- payments.ts
+|   |-- platform-stats.ts
+|   |-- submissions.ts
+|   |-- supabase.ts
+|   \-- supabase-admin.ts
+|-- public
+|   |-- abouthero.jpg
+|   |-- color.jpeg
+|   |-- file.svg
+|   |-- gig.png
+|   |-- globe.svg
+|   |-- hero.png
+|   |-- icon-192.png
+|   |-- next.svg
+|   |-- sw.js
+|   |-- vercel.svg
+|   \-- window.svg
+|-- supabase
+|   |-- .temp
+|   |   |-- cli-latest
+|   |   \-- linked-project.json
+|   \-- functions
+|       \-- send-submission-push
+|           \-- index.ts
+|-- .env.local
+|-- .gitignore
+|-- eslint.config.mjs
+|-- next.config.ts
+|-- next-env.d.ts
+|-- package.json
+|-- package-lock.json
+|-- postcss.config.mjs
+|-- README.md
+\-- tsconfig.json

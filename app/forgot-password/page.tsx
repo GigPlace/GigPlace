@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -16,17 +17,20 @@ export default function ForgotPasswordPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     setError('');
     setSuccessMessage('');
 
-    if (!email.trim()) {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
       setError('Email is required');
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError('Please enter a valid email address');
       return;
     }
@@ -34,12 +38,15 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
+      const redirectTo =
+        process.env.NODE_ENV === 'production'
+          ? 'https://gogigplace.com/reset-password'
+          : 'http://localhost:3000/reset-password';
+
+      const { error: resetError } =
+        await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+          redirectTo,
+        });
 
       if (resetError) {
         setError(resetError.message);
@@ -49,16 +56,19 @@ export default function ForgotPasswordPage() {
       setSuccessMessage(
         'If an account exists with this email, you will receive a password reset link shortly. Please check your inbox and spam folder.'
       );
+
       setEmail('');
     } catch {
-      setError('An unexpected error occurred. Please try again.');
+      setError(
+        'An unexpected error occurred. Please check your connection and try again.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="h-screen max-w-7xl mx-auto bg-[#f4f8f7] overflow-hidden">
+    <main className="mx-auto h-screen max-w-7xl overflow-hidden bg-[#f4f8f7]">
       <div className="grid h-full lg:grid-cols-2">
         {/* Left side */}
         <section className="relative hidden overflow-hidden bg-[#0b3939] px-8 py-8 lg:flex lg:flex-col lg:justify-between">
@@ -85,8 +95,8 @@ export default function ForgotPasswordPage() {
             </h1>
 
             <p className="mt-3 text-sm leading-5 text-white/70">
-              Enter the email linked to your account and we’ll send you a secure
-              link to create a new password.
+              Enter the email linked to your account and we’ll send you a
+              secure link to create a new password.
             </p>
           </div>
 
@@ -112,44 +122,70 @@ export default function ForgotPasswordPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#0b3939]">
                   Account recovery
                 </p>
+
                 <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">
                   Forgot password?
                 </h2>
+
                 <p className="mt-1 text-xs text-slate-500">
                   Enter your email and we’ll send you a reset link.
                 </p>
               </div>
 
               {successMessage && (
-                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
+                >
                   {successMessage}
                 </div>
               )}
 
               {error && (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div
+                  role="alert"
+                  className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+                >
                   {error}
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="mt-4 space-y-3">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  <label
+                    htmlFor="forgot-password-email"
+                    className="mb-1 block text-xs font-semibold text-slate-700"
+                  >
                     Email
                   </label>
+
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 transition focus-within:border-[#0b3939] focus-within:ring-2 focus-within:ring-[#0b3939]/10">
                     <Mail className="h-4 w-4 shrink-0 text-slate-400" />
+
                     <input
+                      id="forgot-password-email"
                       name="email"
                       type="email"
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
-                        if (error) setError('');
+
+                        if (error) {
+                          setError('');
+                        }
+
+                        if (successMessage) {
+                          setSuccessMessage('');
+                        }
                       }}
                       placeholder="you@example.com"
                       className="w-full bg-transparent py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
                       autoComplete="email"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
