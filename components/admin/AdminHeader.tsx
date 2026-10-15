@@ -23,11 +23,11 @@ import {
 import { supabase } from "@/lib/supabase";
 
 type NotificationType =
-  | "campaign"
-  | "task"
-  | "submission"
-  | "transaction"
-  | "wallet";
+  | "campaigns"
+  | "tasks"
+  | "submissions"
+  | "payments"
+  | "wallets";
 
 type AdminNotification = {
   id: string;
